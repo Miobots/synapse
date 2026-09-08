@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Inter_900Black } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from './src/context/ThemeContext';
@@ -29,7 +28,6 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <View style={styles.root} onLayout={onLayoutRootView}>
-          <StatusBar style="light" />
           <AppShell />
         </View>
       </ThemeProvider>

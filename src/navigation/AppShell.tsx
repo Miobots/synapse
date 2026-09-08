@@ -29,14 +29,6 @@ export function AppShell() {
   const insets = useSafeAreaInsets()
   const [screen, setScreen] = useState<Screen>('home')
 
-  const screenMap: Record<Screen, React.ReactNode> = {
-    home: <HomeScreen />,
-    camera: <CameraScreen />,
-    controls: <ControlsScreen />,
-    call: <CallScreen />,
-    tasks: <TasksScreen />,
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
@@ -65,7 +57,11 @@ export function AppShell() {
       </View>
 
       <View style={{ flex: 1 }}>
-        {screenMap[screen]}
+        {screen === 'home' && <HomeScreen />}
+        {screen === 'camera' && <CameraScreen />}
+        {screen === 'controls' && <ControlsScreen />}
+        {screen === 'call' && <CallScreen />}
+        {screen === 'tasks' && <TasksScreen />}
       </View>
 
       <View
