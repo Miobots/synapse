@@ -1,11 +1,11 @@
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
+import type { CapabilityState } from '../capabilities/merge'
 
-export type CapabilityState =
-  | { status: 'available' }
-  | { status: 'degraded'; note: string }
-  | { status: 'unavailable'; reason: string }
+// Defined once, in the merge that produces it. This file previously declared its own
+// CapabilityState, which also collided by name with the protocol's — two shapes, one concept.
+export type { CapabilityState } from '../capabilities/merge'
 
 interface CapabilityProps {
   name: string

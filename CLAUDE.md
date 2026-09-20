@@ -81,7 +81,12 @@ it is the supported path now.
 npm start          # dev server
 npm run android
 npm run web
+npm test           # node's built-in runner; Node 26 strips types, so no framework is needed
+npm run typecheck
 ```
+
+`npm test` covers the non-JSX modules — the link and the capability merge, which is where the
+logic lives. Screens are verified on a device.
 
 **React Native and TypeScript were chosen to share types with the TypeScript Brain**, which
 eliminates a class of contract-drift bugs before it can exist. **Import shared types from
@@ -94,12 +99,22 @@ not after.*
 
 ## Current state
 
-**Fresh Expo scaffold.** `App.tsx` is the template. Nothing project-specific is implemented.
+See [[STATUS]] for the project's state; this section covers only what is true inside this repo.
 
-First tasks: app skeleton with a WebSocket client to Brain's hub → the manifest-driven control
-component → the home and status screen. Design work and UI research were done once and lost with an
-old Linear board; **if those Figma files still exist, link them into the vault's `02 Design`
-folder** before starting from scratch.
+Landed: the app skeleton and navigation shell (S0.1), shared protocol types (S0.2), the
+three-state capability control (S1.1), the link to Brain's hub (S0.3), and the manifest merge
+(S1.2) — which now renders real `cap.manifest` data rather than fixtures.
+
+**The capability list comes off the wire, never from this repo.** `capabilities/catalog.ts` holds
+labels and actions only; which capabilities exist, and what state each is in, is whatever the
+publisher said. A capability this build has never heard of still renders, because a robot on newer
+firmware must not silently lose controls.
+
+The Brain's half of the manifest has no publisher yet, so `missing.brain` is `true` against a live
+Fake Heart. That is correct, not a bug — see `TASK_LEDGER.md:500`.
+
+Design work and UI research were done once and lost with an old Linear board; **if those Figma
+files still exist, link them into the vault's `02 Design` folder** before starting from scratch.
 
 ## Where the design lives
 
