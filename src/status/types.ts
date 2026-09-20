@@ -1,4 +1,4 @@
-import type { SystemHealth } from '@miobots/protocol'
+import type { SystemHealth } from '../protocol/index.ts'
 
 export interface RobotStatusSnapshot {
   batteryPct: number
