@@ -23,6 +23,8 @@ export function LinkHealth({ links }: { links: LinkItem[] }) {
         {links.map((link) => (
           <View
             key={link.id}
+            accessible={true}
+            accessibilityLabel={`${link.label} link: ${link.up ? 'connected' : 'disconnected'}`}
             style={{
               flexDirection: 'row',
               alignItems: 'center',

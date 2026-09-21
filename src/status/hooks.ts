@@ -19,6 +19,12 @@ export function useRobotStatus(sources: RobotStatusSources) {
         lastKnown.current,
         sources,
       ),
-    [sources.heart.fresh, sources.brain.fresh],
+    [
+      sources.heart.fresh,
+      sources.heart.snapshot,
+      sources.heart.lastSeenAtMs,
+      sources.brain.fresh,
+      sources.brain.lastSeenAtMs,
+    ],
   )
 }
