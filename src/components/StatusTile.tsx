@@ -1,14 +1,7 @@
 import { Text, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
-
-function formatClock(ms?: number) {
-  if (ms === undefined) return 'a while ago'
-  const d = new Date(ms)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${hh}:${mm}`
-}
+import { formatTime } from '../utils/format'
 
 const TONE_COLOR = {
   ok: 'green' as const,
@@ -55,7 +48,7 @@ export function StatusTile({ label, value, fresh, lastSeenAtMs, tone }: StatusTi
       <Text style={{ color: valueColor, fontSize: 20, ...font(800) }}>{value}</Text>
       {!fresh && (
         <Text style={{ color: C.yellow, fontSize: 11, ...font(600) }}>
-          cached · {formatClock(lastSeenAtMs)}
+          cached · {formatTime(lastSeenAtMs)}
         </Text>
       )}
     </View>
