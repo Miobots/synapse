@@ -10,7 +10,7 @@ import { useBrainLink, useCapabilities } from '../capabilities/hooks'
 import { useRobotStatus } from '../status/hooks'
 import type { CapabilitySources } from '../capabilities/merge'
 import type { RobotStatusSnapshot } from '../status/types'
-import { HeartCapabilities, BrainCapabilities, type CapabilityStatus } from '../protocol' 
+import { HeartCapabilities, BrainCapabilities, type CapabilityStatus } from '../protocol'
 
 /**
  * Fixtures for the four presence combinations (S1.2's exit check), kept so the demo can be shown
