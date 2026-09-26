@@ -3,10 +3,15 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
 import { Capability } from '../components/Capability'
+import { LinkHealth } from '../components/LinkHealth'
+import { StatusTile } from '../components/StatusTile'
 import { StalenessBanner } from '../components/StalenessBanner'
+
 import { useBrainLink, useCapabilities } from '../capabilities/hooks'
 import type { CapabilitySources } from '../capabilities/merge'
 import { HeartCapabilities, BrainCapabilities, type CapabilityStatus } from '../protocol'
+import { useRobotStatus } from '../status/hooks'
+import type { RobotStatusSnapshot } from '../status/types'
 
 /**
  * Fixtures for the four presence combinations (S1.2's exit check), kept so the demo can be shown
@@ -50,6 +55,11 @@ const FIXTURES: Record<Exclude<Combo, 'live'>, CapabilitySources> = {
   none: { heart: { fresh: false }, brain: { fresh: false }, capabilities: BOTH_HALVES },
 }
 
+const STATUS_BY_COMBO: Partial<Record<Combo, RobotStatusSnapshot>> = {
+  'both-fresh': { batteryPct: 84, room: 'Kitchen', activity: 'Docking', health: 'ok' },
+  'heart-only': { batteryPct: 84, room: 'Kitchen', activity: 'Idle', health: 'ok' },
+}
+
 const COMBO_LABEL: Record<Combo, string> = {
   live: 'Live',
   'both-fresh': 'Both',
@@ -60,19 +70,45 @@ const COMBO_LABEL: Record<Combo, string> = {
 
 export function HomeScreen() {
   const { theme: C } = useTheme()
-  const [combo, setCombo] = useState<Combo>('live')
+  const [combo, setCombo] = useState<Combo>('both-fresh')
 
-  const live = useBrainLink()
-  const sources = combo === 'live' ? live : FIXTURES[combo]
-
-  const { items, missing, lastSeenAtMs } = useCapabilities(sources)
-
-  // TASKS.md S1.2, row 4: both halves gone -> last-known everything, with a staleness banner.
+  const capabilitySources = COMBOS[combo]
+  const { items, missing, lastSeenAtMs } = useCapabilities(capabilitySources)
+  const { tiles, links } = useRobotStatus({
+    heart: {
+      fresh: capabilitySources.heart.fresh,
+      snapshot: STATUS_BY_COMBO[combo],
+      lastSeenAtMs: capabilitySources.heart.lastSeenAtMs,
+    },
+    brain: {
+      fresh: capabilitySources.brain.fresh,
+      lastSeenAtMs: capabilitySources.brain.lastSeenAtMs,
+    },
+  })
   const showBanner = missing.heart && missing.brain
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView contentContainerStyle={{ gap: 16, padding: 20 }}>
+        <Text style={{ color: C.text, fontSize: 16, ...font(700) }}>Status</Text>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          {tiles.map((tile) => (
+            <StatusTile
+              key={tile.id}
+              label={tile.label}
+              value={tile.value}
+              fresh={tile.fresh}
+              lastSeenAtMs={tile.lastSeenAtMs}
+              tone={tile.tone}
+            />
+          ))}
+        </View>
+
+        <LinkHealth links={links} />
+
+        <View style={{ height: 1, backgroundColor: C.border }} />
+
         <Text style={{ color: C.text, fontSize: 16, ...font(700) }}>Capabilities</Text>
 
         {showBanner && <StalenessBanner lastSeenAtMs={lastSeenAtMs} />}
