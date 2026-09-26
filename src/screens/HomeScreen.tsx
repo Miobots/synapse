@@ -6,12 +6,11 @@ import { Capability } from '../components/Capability'
 import { LinkHealth } from '../components/LinkHealth'
 import { StatusTile } from '../components/StatusTile'
 import { StalenessBanner } from '../components/StalenessBanner'
-
 import { useBrainLink, useCapabilities } from '../capabilities/hooks'
-import type { CapabilitySources } from '../capabilities/merge'
-import { HeartCapabilities, BrainCapabilities, type CapabilityStatus } from '../protocol'
 import { useRobotStatus } from '../status/hooks'
+import type { CapabilitySources } from '../capabilities/merge'
 import type { RobotStatusSnapshot } from '../status/types'
+import { HeartCapabilities, BrainCapabilities, type CapabilityStatus } from '../protocol'
 
 /**
  * Fixtures for the four presence combinations (S1.2's exit check), kept so the demo can be shown
@@ -70,21 +69,29 @@ const COMBO_LABEL: Record<Combo, string> = {
 
 export function HomeScreen() {
   const { theme: C } = useTheme()
-  const [combo, setCombo] = useState<Combo>('both-fresh')
+  const [combo, setCombo] = useState<Combo>('live')
 
-  const capabilitySources = COMBOS[combo]
-  const { items, missing, lastSeenAtMs } = useCapabilities(capabilitySources)
+  const live = useBrainLink()
+  const sources = combo === 'live' ? live : FIXTURES[combo]
+
+  const { items, missing, lastSeenAtMs } = useCapabilities(sources)
+
+  // On `live` the status snapshot is deliberately absent: battery, room and activity ride on
+  // state.pose / state.battery, which are P2.4 in M1-W3 and do not exist yet. The tiles then
+  // render as unknown rather than inventing a number, which is the honest failure.
   const { tiles, links } = useRobotStatus({
     heart: {
-      fresh: capabilitySources.heart.fresh,
+      fresh: sources.heart.fresh,
       snapshot: STATUS_BY_COMBO[combo],
-      lastSeenAtMs: capabilitySources.heart.lastSeenAtMs,
+      lastSeenAtMs: sources.heart.lastSeenAtMs,
     },
     brain: {
-      fresh: capabilitySources.brain.fresh,
-      lastSeenAtMs: capabilitySources.brain.lastSeenAtMs,
+      fresh: sources.brain.fresh,
+      lastSeenAtMs: sources.brain.lastSeenAtMs,
     },
   })
+
+  // TASKS.md S1.2, row 4: both halves gone -> last-known everything, with a staleness banner.
   const showBanner = missing.heart && missing.brain
 
   return (

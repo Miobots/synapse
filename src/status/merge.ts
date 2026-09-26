@@ -1,4 +1,4 @@
-import type { SystemHealth } from '@miobots/protocol'
+import type { SystemHealth } from '../protocol/index.ts'
 import type {
   LastKnownSnapshot,
   LinkItem,
@@ -7,7 +7,7 @@ import type {
   RobotStatusSources,
   StatusTileItem,
   StatusTone,
-} from './types'
+} from './types.ts'
 
 const HEALTH_LABEL: Record<SystemHealth, string> = {
   ok: 'OK',
