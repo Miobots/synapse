@@ -71,7 +71,9 @@ export function HomeScreen() {
   const { theme: C } = useTheme()
   const [combo, setCombo] = useState<Combo>('live')
 
-  const live = useBrainLink()
+  // A phone cannot reach the laptop at `localhost`, so the address comes from the environment:
+  // EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start. Unset, it keeps the default.
+  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
   const sources = combo === 'live' ? live : FIXTURES[combo]
 
   const { items, missing, lastSeenAtMs } = useCapabilities(sources)
