@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ProtocolDefaults } from '../protocol'
 import { createBrainLink, type LinkSnapshot } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
-import { halfOf } from './catalog'
 
 /**
  * A half is stale once it has missed three publish ticks — the same three-miss rule the heartbeat
@@ -58,14 +57,15 @@ export function useCapabilities(sources: CapabilitySources) {
 /**
  * Splits one live link into the two halves S1.2 describes.
  *
- * The Brain's half is fresh whenever the link is up — the Brain is that half's source. The
- * robot's half is fresh only while its manifest keeps arriving, because the Brain relays the
- * robot's manifest but cannot vouch for a robot that has gone quiet.
+ * Each half is fresh only while its own manifest keeps arriving over a live link. The Brain
+ * publishes its half every tick and relays the robot's, but it cannot vouch for a robot that has
+ * gone quiet — so a dead robot goes stale on its own clock while the Brain half stays live.
  */
 export function useBrainLink(options?: { url?: string; token?: string }): CapabilitySources {
   const [snapshot, setSnapshot] = useState<LinkSnapshot>({
     status: 'connecting',
     capabilities: {},
+    halfAtMs: {},
   })
   const [now, setNow] = useState(() => Date.now())
 
@@ -85,21 +85,12 @@ export function useBrainLink(options?: { url?: string; token?: string }): Capabi
 
   return useMemo(() => {
     const connected = snapshot.status === 'connected'
-    const heartIds = Object.keys(snapshot.capabilities).filter((id) => halfOf(id) === 'heart')
-    const brainIds = Object.keys(snapshot.capabilities).filter((id) => halfOf(id) === 'brain')
-
-    const manifestFresh =
-      snapshot.manifestAtMs !== undefined && now - snapshot.manifestAtMs < HALF_STALE_AFTER_MS
+    const isFresh = (atMs?: number) =>
+      connected && atMs !== undefined && now - atMs < HALF_STALE_AFTER_MS
 
     return {
-      heart: {
-        fresh: connected && heartIds.length > 0 && manifestFresh,
-        lastSeenAtMs: snapshot.manifestAtMs,
-      },
-      brain: {
-        fresh: connected && brainIds.length > 0 && manifestFresh,
-        lastSeenAtMs: snapshot.manifestAtMs,
-      },
+      heart: { fresh: isFresh(snapshot.halfAtMs.heart), lastSeenAtMs: snapshot.halfAtMs.heart },
+      brain: { fresh: isFresh(snapshot.halfAtMs.brain), lastSeenAtMs: snapshot.halfAtMs.brain },
       capabilities: snapshot.capabilities,
     }
   }, [snapshot, now])

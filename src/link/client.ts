@@ -14,15 +14,18 @@ import {
   Topics,
   DeviceRole,
   ProtocolDefaults,
+  SystemHealth,
   SequenceCounter,
   newEnvelope,
   encode,
   parse,
   type CapabilityManifestPayload,
   type CapabilityStatus,
+  type HeartbeatPayload,
   type HelloPayload,
   type WelcomePayload,
 } from '../protocol/index.ts'
+import { halfOf } from '../capabilities/catalog.ts'
 
 export type LinkStatus = 'connecting' | 'connected' | 'offline'
 
@@ -30,8 +33,11 @@ export interface LinkSnapshot {
   status: LinkStatus
   /** Capabilities as last published, keyed by capability id. Empty until a manifest arrives. */
   capabilities: Record<string, CapabilityStatus>
-  /** When the most recent manifest arrived. Undefined if none has. */
-  manifestAtMs?: number
+  /**
+   * When each half last arrived. Kept per half because the Brain publishes its own half every tick:
+   * one shared timestamp would keep a dead robot looking fresh for as long as the Brain is up.
+   */
+  halfAtMs: { heart?: number; brain?: number }
   /** Why the link is down, when we know. Rendered to the user, so it stays plain. */
   reason?: string
 }
@@ -71,7 +77,47 @@ export function createBrainLink(options: BrainLinkOptions) {
    */
   let statedRefusal: string | undefined
 
-  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {} }
+  /**
+   * ENVELOPE.md §8: heartbeats flow both ways every 5 s, and three missed beats mean the link is
+   * dead. The Brain closes any connection that stays silent for 15 s, so without our beat the app
+   * was dropped and re-connected every 15 s. Their beat matters just as much: a pulled router does
+   * not close the socket, it just goes quiet, and only the missing beats notice.
+   */
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined
+  let lastInboundMs = 0
+
+  function stopHeartbeat(): void {
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
+    heartbeatTimer = undefined
+  }
+
+  function startHeartbeat(ws: WebSocket): void {
+    stopHeartbeat()
+    lastInboundMs = Date.now()
+    heartbeatTimer = setInterval(() => {
+      if (Date.now() - lastInboundMs >= ProtocolDefaults.HEARTBEAT_TIMEOUT_MS) {
+        // Don't wait for onclose: on a dead network the close handshake can itself hang.
+        stopHeartbeat()
+        ws.onclose = null
+        ws.close()
+        socket = undefined
+        scheduleReconnect("Can't reach the Brain right now.")
+        return
+      }
+      ws.send(
+        encode(
+          newEnvelope<typeof Topics.SYS_HEARTBEAT, HeartbeatPayload>({
+            kind: Kind.EVT,
+            topic: Topics.SYS_HEARTBEAT,
+            seq: outboundSeq,
+            payload: { status: SystemHealth.OK, t_wall_ms: Date.now() },
+          }),
+        ),
+      )
+    }, ProtocolDefaults.HEARTBEAT_INTERVAL_MS)
+  }
+
+  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {}, halfAtMs: {} }
 
   function publish(next: Partial<LinkSnapshot>): void {
     snapshot = { ...snapshot, ...next }
@@ -136,11 +182,13 @@ export function createBrainLink(options: BrainLinkOptions) {
       if (!result.success) return
 
       const envelope = result.data
+      lastInboundMs = Date.now()
 
       if (envelope.topic === Topics.SYS_WELCOME) {
         const welcome = envelope.payload as WelcomePayload
         if (welcome.accepted) {
           statedRefusal = undefined
+          startHeartbeat(ws)
           publish({ status: 'connected', reason: undefined })
         } else {
           // A refused token is not a transport problem, so say so rather than retrying silently.
@@ -153,10 +201,13 @@ export function createBrainLink(options: BrainLinkOptions) {
 
       if (envelope.topic === Topics.CAP_MANIFEST) {
         const manifest = envelope.payload as CapabilityManifestPayload
+        const now = Date.now()
+        const halfAtMs = { ...snapshot.halfAtMs }
+        for (const id of Object.keys(manifest.capabilities)) halfAtMs[halfOf(id)] = now
         publish({
           // Merge rather than replace: the two halves may arrive in separate messages.
           capabilities: { ...snapshot.capabilities, ...manifest.capabilities },
-          manifestAtMs: Date.now(),
+          halfAtMs,
         })
       }
     }
@@ -166,6 +217,7 @@ export function createBrainLink(options: BrainLinkOptions) {
     }
 
     ws.onclose = () => {
+      stopHeartbeat()
       socket = undefined
       scheduleReconnect("Can't reach the Brain right now.")
     }
@@ -176,6 +228,7 @@ export function createBrainLink(options: BrainLinkOptions) {
   return {
     stop(): void {
       stopped = true
+      stopHeartbeat()
       if (reconnectTimer) clearTimeout(reconnectTimer)
       socket?.close()
       socket = undefined

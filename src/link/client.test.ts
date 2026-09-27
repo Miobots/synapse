@@ -151,7 +151,7 @@ describe('createBrainLink', () => {
       state: 'degraded',
       note: 'offline — simple phrasing only',
     })
-    assert.ok(snap.manifestAtMs)
+    assert.ok(snap.halfAtMs.heart)
 
     link.stop()
   })
@@ -165,6 +165,57 @@ describe('createBrainLink', () => {
     socket.deliver(manifest({ memory: { state: 'available' } }))
 
     assert.deepEqual(Object.keys(link.snapshot().capabilities).sort(), ['driving', 'memory'])
+
+    link.stop()
+  })
+
+  it("stamps each half separately, so the Brain's ticks cannot keep a dead robot fresh", async () => {
+    // S1.4: kill the Fake Heart and the robot must go stale while the Brain half stays live.
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    socket.deliver(manifest({ driving: { state: 'available' } }))
+    const heartAt = link.snapshot().halfAtMs.heart
+    assert.ok(heartAt)
+    assert.equal(link.snapshot().halfAtMs.brain, undefined)
+
+    await new Promise((r) => setTimeout(r, 5))
+    socket.deliver(manifest({ memory: { state: 'unavailable', reason: "Memory isn't built yet." } }))
+
+    assert.equal(link.snapshot().halfAtMs.heart, heartAt, 'a Brain tick must not refresh the robot')
+    assert.ok(link.snapshot().halfAtMs.brain! > heartAt)
+
+    link.stop()
+  })
+
+  it('heartbeats every 5 s once connected, so the Brain does not drop it as dead', (t) => {
+    t.mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'] })
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    const before = socket.sent.length
+
+    t.mock.timers.tick(ProtocolDefaults.HEARTBEAT_INTERVAL_MS)
+    socket.deliver(welcome(true)) // any inbound frame counts as life
+
+    const beats = socket.sent.slice(before).map((raw) => decode(raw) as { kind: string; topic: string })
+    assert.deepEqual(beats.map((b) => [b.kind, b.topic]), [[Kind.EVT, Topics.SYS_HEARTBEAT]])
+    assert.equal(link.snapshot().status, 'connected')
+
+    link.stop()
+  })
+
+  it('goes offline once the Brain has been silent for three beats, without waiting for a close', (t) => {
+    // A pulled router does not close the socket — it just goes quiet. That is the S1.4 demo.
+    t.mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'] })
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+
+    t.mock.timers.tick(ProtocolDefaults.HEARTBEAT_TIMEOUT_MS)
+
+    assert.equal(link.snapshot().status, 'offline')
+    assert.equal(link.snapshot().reason, "Can't reach the Brain right now.")
 
     link.stop()
   })
