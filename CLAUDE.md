@@ -33,6 +33,12 @@ app must stay fully useful for history, memory, personas and settings rather tha
 **Cached state always carries a visible staleness marker.** Presenting stale data as live is the
 one way a read-only app can still lie.
 
+**Each manifest half is fresh on its own clock.** A Brain tick must never refresh the robot's half —
+otherwise a dead robot looks alive for as long as the Brain is up.
+
+**The link heartbeats both ways.** Send `sys.heartbeat` every 5 s, and go offline after three missed
+beats from the Brain without waiting for `onclose`. A pulled router does not close the socket.
+
 **The app never enforces a safety property.** The deadman lives on Heart at ~400 ms and the app
 cannot disable it. The app's job is to *surface* it — show "connection lost" the moment the robot
 stops, not seconds later. A timeout enforced by the thing that might have crashed is not a timeout.
@@ -80,10 +86,13 @@ it is the supported path now.
 ```bash
 npm start          # dev server
 npm run android
-npm run web
 npm test           # node's built-in runner; Node 26 strips types, so no framework is needed
 npm run typecheck
 ```
+
+On a phone, point the app at the laptop: `EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start`.
+Unset, it dials `ProtocolDefaults.DEFAULT_BRAIN_URL` (`ws://localhost:8080/ws`). `npm run web` is
+not usable yet — `react-native-web` is not installed.
 
 `npm test` covers the non-JSX modules — the link and the capability merge, which is where the
 logic lives. Screens are verified on a device.
@@ -102,16 +111,25 @@ not after.*
 See [[STATUS]] for the project's state; this section covers only what is true inside this repo.
 
 Landed: the app skeleton and navigation shell (S0.1), shared protocol types (S0.2), the
-three-state capability control (S1.1), the link to Brain's hub (S0.3), and the manifest merge
-(S1.2) — which now renders real `cap.manifest` data rather than fixtures.
+three-state capability control (S1.1), the link to Brain's hub (S0.3), the manifest merge (S1.2),
+the home screen with staleness marking (S1.3), and the unplug-the-router behaviour (S1.4).
+
+**The link heartbeats both ways** (ENVELOPE §8). It sends `sys.heartbeat` every 5 s, because the
+hub drops a connection silent for 15 s. It also goes offline after three missed beats from the
+Brain without waiting for `onclose`: a pulled router does not close the socket, it just goes quiet.
 
 **The capability list comes off the wire, never from this repo.** `capabilities/catalog.ts` holds
 labels and actions only; which capabilities exist, and what state each is in, is whatever the
 publisher said. A capability this build has never heard of still renders, because a robot on newer
 firmware must not silently lose controls.
 
-The Brain's half of the manifest has no publisher yet, so `missing.brain` is `true` against a live
-Fake Heart. That is correct, not a bug — see `TASK_LEDGER.md:500`.
+**Each manifest half is fresh on its own clock** (`LinkSnapshot.halfAtMs`). The Brain publishes its
+half every 10 s; with one shared timestamp, that would keep a dead robot looking fresh for as long
+as the Brain was up. A half goes stale after three missed ticks, so a dead robot takes ~30 s to
+show as unreachable, while a dead Brain shows at once.
+
+**The status tiles are unknown on `live`.** Battery, room and activity ride on telemetry topics
+(P2.4) that do not exist yet, so they render as unknown rather than inventing a value.
 
 Design work and UI research were done once and lost with an old Linear board; **if those Figma
 files still exist, link them into the vault's `02 Design` folder** before starting from scratch.
