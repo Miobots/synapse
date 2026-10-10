@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { View, Text, Pressable, StatusBar } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Home, Camera, Gamepad2, Phone, CheckSquare } from 'lucide-react-native'
+import { Home, Camera, Gamepad2, Phone, CheckSquare, Map as MapIcon } from 'lucide-react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
 import { HomeScreen } from '../screens/HomeScreen'
+import { MapScreen } from '../screens/MapScreen'
 import { CameraScreen } from '../screens/CameraScreen'
 import { ControlsScreen } from '../screens/ControlsScreen'
 import { CallScreen } from '../screens/CallScreen'
@@ -13,6 +14,7 @@ import type { Screen } from '../types'
 
 const NAV: { screen: Screen; Icon: typeof Home; label: string }[] = [
   { screen: 'home', Icon: Home, label: 'Home' },
+  { screen: 'map', Icon: MapIcon, label: 'Map' },
   { screen: 'camera', Icon: Camera, label: 'Camera' },
   { screen: 'controls', Icon: Gamepad2, label: 'Drive' },
   { screen: 'call', Icon: Phone, label: 'Call' },
@@ -20,7 +22,7 @@ const NAV: { screen: Screen; Icon: typeof Home; label: string }[] = [
 ]
 
 const TITLES: Record<Screen, string> = {
-  home: 'Brian', camera: 'Live Camera', controls: 'Drive Brian',
+  home: 'Brian', map: 'Map', camera: 'Live Camera', controls: 'Drive Brian',
   call: 'Call', tasks: 'Schedule',
 }
 
@@ -58,6 +60,7 @@ export function AppShell() {
 
       <View style={{ flex: 1 }}>
         {screen === 'home' && <HomeScreen />}
+        {screen === 'map' && <MapScreen />}
         {screen === 'camera' && <CameraScreen />}
         {screen === 'controls' && <ControlsScreen />}
         {screen === 'call' && <CallScreen />}
