@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ProtocolDefaults } from '../protocol'
+import { ProtocolDefaults, type PosePayload } from '../protocol'
 import { createBrainLink, type LinkSnapshot } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
 
@@ -61,7 +61,21 @@ export function useCapabilities(sources: CapabilitySources) {
  * publishes its half every tick and relays the robot's, but it cannot vouch for a robot that has
  * gone quiet — so a dead robot goes stale on its own clock while the Brain half stays live.
  */
-export function useBrainLink(options?: { url?: string; token?: string }): CapabilitySources {
+/**
+ * A live link, split into the two capability halves S1.2 describes, plus the robot's position.
+ *
+ * The pose rides the same link because it is the robot telling us where it is on the same wire that
+ * tells us what it can do. It is telemetry, so it is last-received rather than accumulated: the map
+ * screen keeps the last one and shows them turning grey by comparing `poseAtMs` to now.
+ */
+export interface LiveLink extends CapabilitySources {
+  pose?: PosePayload
+  poseAtMs?: number
+  /** The raw link status, for screens that need to know whether the wire is up at all. */
+  status: LinkSnapshot['status']
+}
+
+export function useBrainLink(options?: { url?: string; token?: string }): LiveLink {
   const [snapshot, setSnapshot] = useState<LinkSnapshot>({
     status: 'connecting',
     capabilities: {},
@@ -92,6 +106,9 @@ export function useBrainLink(options?: { url?: string; token?: string }): Capabi
       heart: { fresh: isFresh(snapshot.halfAtMs.heart), lastSeenAtMs: snapshot.halfAtMs.heart },
       brain: { fresh: isFresh(snapshot.halfAtMs.brain), lastSeenAtMs: snapshot.halfAtMs.brain },
       capabilities: snapshot.capabilities,
+      pose: snapshot.pose,
+      poseAtMs: snapshot.poseAtMs,
+      status: snapshot.status,
     }
   }, [snapshot, now])
 }

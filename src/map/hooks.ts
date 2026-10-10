@@ -1,34 +1,47 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_GRID_SIZE, DEFAULT_RESOLUTION, fixtureGrid, fixturePose } from './fixture.ts'
-import type { MapSource, MapSnapshot, MergedMap } from './types.ts'
+import type { MapSource, OccupancyGrid, MergedMap } from './types.ts'
+import type { PosePayload } from '../protocol/index.ts'
+
+interface LastKnown {
+  grid?: OccupancyGrid
+  pose?: PosePayload
+  seenAtMs?: number
+}
 
 /**
- * Keeps the last map we saw, so the screen still draws something with nothing connected.
+ * Keeps the last map (and last pose) we saw, so the screen still draws something with nothing
+ * connected.
  *
  * Structurally the same as `useRobotStatus`: the live snapshot is used while it is fresh, and the
  * last one is kept in a ref — written in an effect, never during render, because mutating a ref
- * while rendering is torn up by StrictMode's double invocation. What the screen gets back is a
- * `fresh` flag *and* the grid, never one without the other, so stale map data cannot be presented
- * as live (CLAUDE.md's one way a read-only app can still lie).
+ * while rendering is torn up by StrictMode's double invocation. Grid and pose are kept separately,
+ * because they arrive on their own clocks: a pose update must not wipe a map we already have, or a
+ * map update must not drop the robot's position.
+ *
+ * What the screen gets back is a `fresh` flag *and* the data, never one without the other, so stale
+ * map data cannot be presented as live (CLAUDE.md's one way a read-only app can still lie).
  */
 export function useMap(source: MapSource): MergedMap {
-  const lastKnown = useRef<{ snapshot: MapSnapshot; seenAtMs?: number } | null>(null)
+  const lastKnown = useRef<LastKnown>({})
 
   useEffect(() => {
-    if (source.fresh && source.snapshot) {
-      lastKnown.current = { snapshot: source.snapshot, seenAtMs: source.lastSeenAtMs }
+    if (!source.fresh) return
+    lastKnown.current = {
+      grid: source.snapshot?.grid ?? lastKnown.current.grid,
+      pose: source.snapshot?.pose ?? lastKnown.current.pose,
+      seenAtMs: source.lastSeenAtMs ?? lastKnown.current.seenAtMs,
     }
   }, [source.fresh, source.snapshot, source.lastSeenAtMs])
 
   return useMemo(() => {
     const live = source.fresh ? source.snapshot : undefined
-    const shown = live ?? lastKnown.current?.snapshot
 
     return {
-      grid: shown?.grid,
-      pose: shown?.pose,
+      grid: live?.grid ?? lastKnown.current.grid,
+      pose: live?.pose ?? lastKnown.current.pose,
       fresh: source.fresh,
-      lastSeenAtMs: source.fresh ? source.lastSeenAtMs : lastKnown.current?.seenAtMs,
+      lastSeenAtMs: source.lastSeenAtMs ?? lastKnown.current.seenAtMs,
     }
   }, [source.fresh, source.snapshot, source.lastSeenAtMs])
 }

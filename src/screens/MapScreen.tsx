@@ -6,17 +6,19 @@ import { formatTime } from '../utils/format'
 import { MapView } from '../components/MapView'
 import { countCells } from '../map/grid'
 import { useDevMapFeed, useFrameRate, useMap } from '../map/hooks'
-import type { OccupancyGrid } from '../map/types'
+import { useBrainLink } from '../capabilities/hooks'
+import type { MapSource, OccupancyGrid } from '../map/types'
 
 const SIZES = [64, 128, 256] as const
 
 /**
- * M-82 / S2.1 — draws the robot's map and keeps the last one.
+ * M-83 / S2.2 — draws the robot where it is, pointing the right way, updating live.
  *
- * The exit check is that it stays smooth while the pose updates about five times a second. The dev
- * overlay is how that is judged rather than guessed: it reports measured FPS and lets the same grid
- * be switched between the batched-path render and one-rect-per-cell, and resized, so the decision
- * (see `buildOccupancyPath`) can be made by watching, not by assuming.
+ * The pose comes off the link (`state.pose`) the moment the robot publishes it, and the dev fixture
+ * stands in until then so the marker can still be watched moving. The grid does not yet ride the
+ * wire (S2.1), so it stays a fixture. Only one screen is mounted at a time, so the link this screen
+ * opens is a fresh connection when the Map tab opens and is stopped on the way out — it does not
+ * sit alongside Home's.
  */
 export function MapScreen() {
   const { theme: C } = useTheme()
@@ -26,10 +28,35 @@ export function MapScreen() {
   const [size, setSize] = useState<(typeof SIZES)[number]>(128)
   const [perCell, setPerCell] = useState(false)
 
-  // Until the map topic exists in the protocol, only the dev build has anything to draw. A
-  // production build holds no map rather than a fabricated one — the app must not invent state.
-  const feed = useDevMapFeed({ connected: __DEV__ && connected, ticking: __DEV__ && ticking, size })
-  const { grid, pose, fresh, lastSeenAtMs } = useMap(feed)
+  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
+
+  // Until the map topic exists in the protocol, only the dev build has a grid to draw. A production
+  // build holds no map rather than a fabricated one — the app must not invent state. The fixture's
+  // pose stops ticking once a live pose is arriving so the two never fight over the marker.
+  const feed = useDevMapFeed({
+    connected: __DEV__ && connected,
+    ticking: __DEV__ && ticking && !live.pose,
+    size,
+  })
+
+  const source = useMemo<MapSource>(() => {
+    // The fixture exists only in development. A production build must never draw a fabricated map
+    // or invent a robot position just because a link came up (CLAUDE.md: the app holds no
+    // authority). So the grid and the fixture pose are both gated on `__DEV__`; the live pose off
+    // the wire is not.
+    const grid = __DEV__ ? feed.snapshot?.grid : undefined
+    const pose = live.pose ?? (__DEV__ ? feed.snapshot?.pose : undefined)
+    const fresh = (__DEV__ && connected) || live.status === 'connected'
+    return grid || pose
+      ? {
+          fresh,
+          snapshot: { grid, pose },
+          lastSeenAtMs: live.poseAtMs ?? (__DEV__ ? feed.lastSeenAtMs : undefined),
+        }
+      : { fresh: false }
+  }, [feed.snapshot, feed.lastSeenAtMs, live.pose, live.poseAtMs, live.status, connected])
+
+  const { grid, pose, fresh, lastSeenAtMs } = useMap(source)
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>

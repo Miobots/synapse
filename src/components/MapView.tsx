@@ -1,8 +1,9 @@
 import { memo, useMemo, type ReactElement } from 'react'
-import Svg, { G, Path, Polygon, Rect } from 'react-native-svg'
+import Svg, { Circle, G, Path, Polygon, Rect } from 'react-native-svg'
 import { useTheme } from '../context/ThemeContext'
 import type { PosePayload } from '../protocol'
 import { buildOccupancyPath } from '../map/grid'
+import { placePose } from '../map/pose'
 import { Cell, type OccupancyGrid } from '../map/types'
 
 interface MapViewProps {
@@ -80,21 +81,23 @@ function Cells({ grid }: { grid: OccupancyGrid }) {
   )
 }
 
-const MARKER_CELLS = 3
-
 function PoseMarker({ pose, grid }: { pose: PosePayload; grid: OccupancyGrid }) {
   const { theme: C } = useTheme()
 
-  const cx = pose.x / grid.resolution
-  const cy = grid.height - pose.y / grid.resolution
-  // SVG rotates clockwise on a y-down canvas; the robot's yaw is counter-clockwise on a y-up map,
-  // and the two flips cancel into a single negation.
-  const degrees = (-pose.yaw * 180) / Math.PI
-  const points = `${MARKER_CELLS},0 ${-MARKER_CELLS},${MARKER_CELLS * 0.7} ${-MARKER_CELLS},${-MARKER_CELLS * 0.7}`
+  const { col, row, degrees } = placePose(grid, pose)
+  // Sized against the grid so the robot stays visible whether the map is 64 or 512 cells across.
+  const r = Math.max(2, Math.min(grid.width, grid.height) * 0.025)
 
   return (
-    <G transform={`translate(${cx} ${cy}) rotate(${degrees})`}>
-      <Polygon points={points} fill={C.mapPose} />
+    <G transform={`translate(${col} ${row}) rotate(${degrees})`}>
+      <Circle r={r} fill={C.mapPose} stroke={C.mapUnknown} strokeWidth={r * 0.35} />
+      {/* A nose pointing along the heading — the "right way" the robot faces. */}
+      <Polygon
+        points={`${r * 1.9},0 ${r * 0.1},${r * 0.8} ${r * 0.1},${-r * 0.8}`}
+        fill={C.mapPose}
+        stroke={C.mapUnknown}
+        strokeWidth={r * 0.25}
+      />
     </G>
   )
 }
