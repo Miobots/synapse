@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { placePose } from './pose.ts'
+import { placePose, worldFromCell, cellFromViewPoint } from './pose.ts'
 import { createGrid } from './grid.ts'
 import type { PosePayload } from '../protocol/index.ts'
 
@@ -35,5 +35,39 @@ describe('placePose', () => {
 
   it('points 180° yaw the opposite way', () => {
     assert.equal(placePose(grid, pose(0, 0, Math.PI)).degrees, -180)
+  })
+})
+
+describe('worldFromCell', () => {
+  it('is the inverse of placePose', () => {
+    const at = placePose(grid, pose(1.2, 0.8, 0))
+    const back = worldFromCell(grid, at.col, at.row)
+    assert.ok(Math.abs(back.x - 1.2) < 1e-9)
+    assert.ok(Math.abs(back.y - 0.8) < 1e-9)
+  })
+})
+
+describe('cellFromViewPoint', () => {
+  it('maps the centre of a same-aspect view to the centre of the grid', () => {
+    // View 500x250 and grid 100x50 are both 2:1, so there is no letterboxing.
+    const cell = cellFromViewPoint(grid, { width: 500, height: 250 }, { x: 250, y: 125 })
+    assert.equal(cell.col, 50)
+    assert.equal(cell.row, 25)
+  })
+
+  it('undoes the left/right letterbox when the view is wider than the map', () => {
+    // View 600x250 vs grid 100x50: scale = min(6, 5) = 5, drawn 500 wide, centred with 50 px bars.
+    const view = { width: 600, height: 250 }
+    assert.equal(cellFromViewPoint(grid, view, { x: 50, y: 0 }).col, 0)
+    assert.equal(cellFromViewPoint(grid, view, { x: 550, y: 0 }).col, 100)
+    // A tap in the left bar lands off the map, before column 0.
+    assert.ok(cellFromViewPoint(grid, view, { x: 10, y: 0 }).col < 0)
+  })
+
+  it('undoes the top/bottom letterbox when the view is taller than the map', () => {
+    // View 100x100 vs grid 100x50: scale = min(1, 2) = 1, drawn 50 tall, centred with 25 px bars.
+    const view = { width: 100, height: 100 }
+    assert.equal(cellFromViewPoint(grid, view, { x: 0, y: 25 }).row, 0)
+    assert.equal(cellFromViewPoint(grid, view, { x: 0, y: 75 }).row, 50)
   })
 })

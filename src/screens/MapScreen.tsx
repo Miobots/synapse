@@ -1,24 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
 import { formatTime } from '../utils/format'
 import { MapView } from '../components/MapView'
+import { CapabilityStateText } from '../components/CapabilityStateText'
 import { countCells } from '../map/grid'
 import { useDevMapFeed, useFrameRate, useMap } from '../map/hooks'
-import { useBrainLink } from '../capabilities/hooks'
+import { useBrainLink, useCapabilities } from '../capabilities/hooks'
+import { HeartCapabilities, Topics, generateUlid, type NavGotoPayload } from '../protocol'
+import type { CapabilityState } from '../capabilities/merge'
 import type { MapSource, OccupancyGrid } from '../map/types'
 
 const SIZES = [64, 128, 256] as const
 
 /**
- * M-83 / S2.2 — draws the robot where it is, pointing the right way, updating live.
+ * M-84 / S2.3 — tap the map and the app asks the Brain to send the robot there.
  *
- * The pose comes off the link (`state.pose`) the moment the robot publishes it, and the dev fixture
- * stands in until then so the marker can still be watched moving. The grid does not yet ride the
- * wire (S2.1), so it stays a fixture. Only one screen is mounted at a time, so the link this screen
- * opens is a fresh connection when the Map tab opens and is stopped on the way out — it does not
- * sit alongside Home's.
+ * The app asks, it never drives (CLAUDE.md): the tap builds a `nav.goto` command and hands it to the
+ * Brain. The control is the tap itself, so it is gated by the robot's `driving` capability — and
+ * gated *out loud*. If driving is unavailable, the reason is on screen and a tap repeats it rather
+ * than doing nothing, because a dead tap reads as a broken app.
  */
 export function MapScreen() {
   const { theme: C } = useTheme()
@@ -27,8 +29,16 @@ export function MapScreen() {
   const [ticking, setTicking] = useState(true)
   const [size, setSize] = useState<(typeof SIZES)[number]>(128)
   const [perCell, setPerCell] = useState(false)
+  const [outcome, setOutcome] = useState<string>()
 
   const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
+  const { items } = useCapabilities(live)
+  const driving = items.find((item) => item.id === HeartCapabilities.DRIVING)
+
+  // A capability the robot never announced is not ours to assume, so an absent `driving` gates the
+  // map just like an unavailable one — with a reason that is true rather than invented.
+  const driveState: CapabilityState =
+    driving?.state ?? { status: 'unavailable', reason: "Brian hasn't said it can drive yet." }
 
   // Until the map topic exists in the protocol, only the dev build has a grid to draw. A production
   // build holds no map rather than a fabricated one — the app must not invent state. The fixture's
@@ -58,6 +68,28 @@ export function MapScreen() {
 
   const { grid, pose, fresh, lastSeenAtMs } = useMap(source)
 
+  const ask = useCallback(
+    (point: { x: number; y: number }) => {
+      if (driveState.status === 'unavailable') {
+        // Never a silent no-op: acknowledge the tap. The reason itself is already on screen, via the
+        // shared `CapabilityStateText`, so this line only confirms nothing was sent.
+        setOutcome('Not sent — driving is unavailable.')
+        return
+      }
+
+      const goal: NavGotoPayload = { goal_id: generateUlid(), x: point.x, y: point.y }
+      const sent = live.command(Topics.NAV_GOTO, goal)
+      setOutcome(sent ? 'Asked Brian to go there.' : "Can't reach the Brain right now.")
+    },
+    [driveState.status, live],
+  )
+
+  // A result from one capability state must not outlive it: if driving goes from available to
+  // unavailable, "Asked Brian to go there." is no longer the truth and must not linger.
+  useEffect(() => {
+    setOutcome(undefined)
+  }, [driveState.status])
+
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View
@@ -72,7 +104,7 @@ export function MapScreen() {
         }}
       >
         {grid ? (
-          <MapView grid={grid} pose={pose} perCell={perCell} />
+          <MapView grid={grid} pose={pose} perCell={perCell} onTap={ask} />
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: C.muted, fontSize: 14, ...font(500) }}>
@@ -102,6 +134,8 @@ export function MapScreen() {
         )}
       </View>
 
+      <DriveStatus state={driveState} gridPresent={!!grid} outcome={outcome} />
+
       {__DEV__ && (
         <DevHud
           grid={grid}
@@ -115,6 +149,55 @@ export function MapScreen() {
           onTick={setTicking}
         />
       )}
+    </View>
+  )
+}
+
+/**
+ * The driving control's one visible line: what it does, or why it will not.
+ *
+ * Always on screen — the reason is there *before* a tap, not only after a silent one (CLAUDE.md: a
+ * dead control with no explanation is a bug). The note/reason itself comes from the shared
+ * `CapabilityStateText`, so the copy and colours are the same ones Home's capability buttons use.
+ */
+function DriveStatus({
+  state,
+  gridPresent,
+  outcome,
+}: {
+  state: CapabilityState
+  gridPresent: boolean
+  outcome?: string
+}) {
+  const { theme: C } = useTheme()
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingBottom: 10, gap: 4 }}>
+      <Text
+        style={{
+          color: C.muted,
+          fontSize: 11,
+          ...font(700),
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+        }}
+      >
+        Driving
+      </Text>
+
+      {!gridPresent ? (
+        <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
+          Waiting for a map to send Brian to.
+        </Text>
+      ) : state.status === 'available' ? (
+        <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
+          Tap the map to send Brian there.
+        </Text>
+      ) : (
+        <CapabilityStateText state={state} />
+      )}
+
+      {outcome && <Text style={{ color: C.text, fontSize: 13, ...font(600) }}>{outcome}</Text>}
     </View>
   )
 }

@@ -23,12 +23,26 @@ import {
   type CapabilityStatus,
   type HeartbeatPayload,
   type HelloPayload,
+  type PayloadFor,
   type PosePayload,
+  type TopicName,
   type WelcomePayload,
 } from '../protocol/index.ts'
 import { halfOf } from '../capabilities/catalog.ts'
 
 export type LinkStatus = 'connecting' | 'connected' | 'offline'
+
+/**
+ * Asks the Brain to do something, on the current connection.
+ *
+ * Commands are requests, never decisions (CLAUDE.md): the app names what it wants and the Brain
+ * decides. Returns `false` when the wire is not up, so the caller can say why instead of a tap that
+ * quietly does nothing.
+ */
+export type SendCommand = <TTopic extends TopicName>(
+  topic: TTopic,
+  payload: PayloadFor<TTopic, unknown>,
+) => boolean
 
 export interface LinkSnapshot {
   status: LinkStatus
@@ -248,6 +262,14 @@ export function createBrainLink(options: BrainLinkOptions) {
     },
     snapshot(): LinkSnapshot {
       return snapshot
+    },
+    command<TTopic extends TopicName>(topic: TTopic, payload: PayloadFor<TTopic, unknown>): boolean {
+      const ws = socket
+      if (stopped || !ws || snapshot.status !== 'connected') return false
+      // Share the connection's outbound sequence counter with the heartbeat, exactly as ENVELOPE §6
+      // requires: one counter per connection, not one per topic.
+      ws.send(encode(newEnvelope<TTopic, unknown>({ kind: Kind.CMD, topic, seq: outboundSeq, payload })))
+      return true
     },
   }
 }

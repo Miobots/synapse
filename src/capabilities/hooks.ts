@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProtocolDefaults, type PosePayload } from '../protocol'
-import { createBrainLink, type LinkSnapshot } from '../link/client'
+import { createBrainLink, type LinkSnapshot, type SendCommand } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
 
 /**
@@ -73,6 +73,8 @@ export interface LiveLink extends CapabilitySources {
   poseAtMs?: number
   /** The raw link status, for screens that need to know whether the wire is up at all. */
   status: LinkSnapshot['status']
+  /** Ask the Brain to do something; `false` if the wire is down. See {@link SendCommand}. */
+  command: SendCommand
 }
 
 export function useBrainLink(options?: { url?: string; token?: string }): LiveLink {
@@ -82,14 +84,25 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
     halfAtMs: {},
   })
   const [now, setNow] = useState(() => Date.now())
+  const linkRef = useRef<ReturnType<typeof createBrainLink> | null>(null)
 
   const url = options?.url
   const token = options?.token
 
   useEffect(() => {
     const link = createBrainLink({ url, token, onChange: setSnapshot })
-    return () => link.stop()
+    linkRef.current = link
+    return () => {
+      link.stop()
+      linkRef.current = null
+    }
   }, [url, token])
+
+  // Stable across renders, so passing it to a memoised screen does not re-render it every tick.
+  const command = useCallback<SendCommand>(
+    (topic, payload) => linkRef.current?.command(topic, payload) ?? false,
+    [],
+  )
 
   // Staleness is the passage of time, not an event, so it needs its own tick to be noticed.
   useEffect(() => {
@@ -109,6 +122,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       pose: snapshot.pose,
       poseAtMs: snapshot.poseAtMs,
       status: snapshot.status,
+      command,
     }
-  }, [snapshot, now])
+  }, [snapshot, now, command])
 }

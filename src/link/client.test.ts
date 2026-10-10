@@ -291,4 +291,30 @@ describe('createBrainLink', () => {
     socket.onclose!()
     assert.equal(FakeSocket.last, before, 'no new socket should be opened after stop()')
   })
+
+  it('asks the Brain to navigate when told, as a command (M-84)', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+
+    const sent = link.command(Topics.NAV_GOTO, { goal_id: 'goal-1', x: 1.5, y: 2 })
+
+    assert.equal(sent, true)
+    const envelope = decode(socket.sent[socket.sent.length - 1]!)
+    assert.equal(envelope.kind, Kind.CMD)
+    assert.equal(envelope.topic, Topics.NAV_GOTO)
+    assert.deepEqual(envelope.payload, { goal_id: 'goal-1', x: 1.5, y: 2 })
+
+    link.stop()
+  })
+
+  it('refuses to send before the handshake is accepted, so the caller can say why', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+
+    assert.equal(link.command(Topics.NAV_GOTO, { goal_id: 'g', x: 0, y: 0 }), false)
+    assert.equal(socket.sent.filter((raw) => decode(raw).topic === Topics.NAV_GOTO).length, 0)
+
+    link.stop()
+  })
 })
