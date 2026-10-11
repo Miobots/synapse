@@ -13,6 +13,10 @@ export const DARK = {
   text: '#F0F4FF',
   muted: '#6B7A99',
   danger: '#FF3B5C',
+  mapUnknown: '#0A101E',
+  mapFree: '#12384A',
+  mapOccupied: '#8FA3C8',
+  mapPose: '#FF6B47',
 }
 
 export const LIGHT = {
@@ -28,6 +32,10 @@ export const LIGHT = {
   text: '#0F172A',
   muted: '#64748B',
   danger: '#DC2626',
+  mapUnknown: '#E9EDF4',
+  mapFree: '#CDEDF5',
+  mapOccupied: '#334155',
+  mapPose: '#FF6B47',
 }
 
 // Font helpers — map weight to loaded Inter variant
