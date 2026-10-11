@@ -72,6 +72,15 @@ function manifest(capabilities: CapabilityManifestPayload['capabilities']) {
   })
 }
 
+function pose(x: number, y: number, yaw: number) {
+  return newEnvelope({
+    kind: Kind.TELEM,
+    topic: Topics.STATE_POSE,
+    payload: { x, y, yaw, confidence: 0.9 },
+    seq: hubSeq,
+  })
+}
+
 describe('createBrainLink', () => {
   let seen: LinkSnapshot[]
 
@@ -165,6 +174,33 @@ describe('createBrainLink', () => {
     socket.deliver(manifest({ memory: { state: 'available' } }))
 
     assert.deepEqual(Object.keys(link.snapshot().capabilities).sort(), ['driving', 'memory'])
+
+    link.stop()
+  })
+
+  it('records the robot pose as telemetry arrives (M-83)', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    assert.equal(link.snapshot().pose, undefined)
+
+    socket.deliver(pose(1.5, 2, 0.25))
+
+    assert.deepEqual(link.snapshot().pose, { x: 1.5, y: 2, yaw: 0.25, confidence: 0.9 })
+    assert.ok(link.snapshot().poseAtMs, 'the arrival time is kept so the map can age the marker')
+
+    link.stop()
+  })
+
+  it('keeps only the latest pose — telemetry is a reading of now, not a log', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    socket.deliver(pose(0, 0, 0))
+    socket.deliver(pose(3, 4, 1))
+
+    assert.equal(link.snapshot().pose!.x, 3)
+    assert.equal(link.snapshot().pose!.y, 4)
 
     link.stop()
   })

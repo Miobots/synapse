@@ -38,7 +38,8 @@ export interface OccupancyGrid {
 }
 
 export interface MapSnapshot {
-  grid: OccupancyGrid
+  /** Absent until a map arrives; a pose can be known before the grid is. */
+  grid?: OccupancyGrid
   /** The robot's pose in metres, from `state.pose`. Absent until one arrives. */
   pose?: PosePayload
 }

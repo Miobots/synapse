@@ -23,6 +23,7 @@ import {
   type CapabilityStatus,
   type HeartbeatPayload,
   type HelloPayload,
+  type PosePayload,
   type WelcomePayload,
 } from '../protocol/index.ts'
 import { halfOf } from '../capabilities/catalog.ts'
@@ -38,6 +39,14 @@ export interface LinkSnapshot {
    * one shared timestamp would keep a dead robot looking fresh for as long as the Brain is up.
    */
   halfAtMs: { heart?: number; brain?: number }
+  /**
+   * Latest `state.pose` telemetry, and when it arrived. It is kept when the link goes down, like the
+   * capabilities, so the map can still draw the last known position — which is exactly why it must
+   * never be shown as live without checking `poseAtMs` against the clock (`useBrainLink` does, as
+   * `poseFresh`).
+   */
+  pose?: PosePayload
+  poseAtMs?: number
   /** Why the link is down, when we know. Rendered to the user, so it stays plain. */
   reason?: string
 }
@@ -209,6 +218,11 @@ export function createBrainLink(options: BrainLinkOptions) {
           capabilities: { ...snapshot.capabilities, ...manifest.capabilities },
           halfAtMs,
         })
+        return
+      }
+
+      if (envelope.topic === Topics.STATE_POSE) {
+        publish({ pose: envelope.payload as PosePayload, poseAtMs: Date.now() })
       }
     }
 

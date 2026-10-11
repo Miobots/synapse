@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ProtocolDefaults } from '../protocol'
+import { ProtocolDefaults, type PosePayload } from '../protocol'
 import { createBrainLink, type LinkSnapshot } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
 
@@ -61,7 +61,26 @@ export function useCapabilities(sources: CapabilitySources) {
  * publishes its half every tick and relays the robot's, but it cannot vouch for a robot that has
  * gone quiet — so a dead robot goes stale on its own clock while the Brain half stays live.
  */
-export function useBrainLink(options?: { url?: string; token?: string }): CapabilitySources {
+/**
+ * A live link, split into the two capability halves S1.2 describes, plus the robot's position.
+ *
+ * The pose rides the same link because it is the robot telling us where it is on the same wire that
+ * tells us what it can do. It is telemetry, so it is last-received rather than accumulated: the
+ * last one is kept, and `poseFresh` says whether it is still arriving.
+ */
+export interface LiveLink extends CapabilitySources {
+  pose?: PosePayload
+  poseAtMs?: number
+  /**
+   * Whether `pose` is still arriving. Judged on the pose's own clock, exactly like a manifest half:
+   * the Brain being up says nothing about a robot that has gone quiet.
+   */
+  poseFresh: boolean
+  /** The raw link status, for screens that need to know whether the wire is up at all. */
+  status: LinkSnapshot['status']
+}
+
+export function useBrainLink(options?: { url?: string; token?: string }): LiveLink {
   const [snapshot, setSnapshot] = useState<LinkSnapshot>({
     status: 'connecting',
     capabilities: {},
@@ -92,6 +111,13 @@ export function useBrainLink(options?: { url?: string; token?: string }): Capabi
       heart: { fresh: isFresh(snapshot.halfAtMs.heart), lastSeenAtMs: snapshot.halfAtMs.heart },
       brain: { fresh: isFresh(snapshot.halfAtMs.brain), lastSeenAtMs: snapshot.halfAtMs.brain },
       capabilities: snapshot.capabilities,
+      pose: snapshot.pose,
+      poseAtMs: snapshot.poseAtMs,
+      // ponytail: the pose shares the manifest's 30 s window, so "the robot went quiet" is one
+      // clock. Give it a tighter window of its own once something publishes `state.pose` and its
+      // real rate is known.
+      poseFresh: isFresh(snapshot.poseAtMs),
+      status: snapshot.status,
     }
   }, [snapshot, now])
 }
