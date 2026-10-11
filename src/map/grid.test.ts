@@ -21,6 +21,12 @@ describe('createGrid', () => {
     assert.equal(grid.resolution, 0.05)
     assert.equal(grid.cells.length, 12)
     assert.ok(grid.cells.every((c) => c === Cell.Unknown))
+    assert.deepEqual(grid.origin, { x: 0, y: 0 })
+  })
+
+  it('carries the map origin it is given', () => {
+    const grid = createGrid(4, 3, 0.05, Cell.Unknown, { x: -3.952, y: -2.949 })
+    assert.deepEqual(grid.origin, { x: -3.952, y: -2.949 })
   })
 
   it('fills a non-unknown grid', () => {
@@ -106,6 +112,19 @@ describe('fixture', () => {
     for (const p of [a, b]) {
       assert.ok(p.x >= 0 && p.x <= size * resolution)
       assert.ok(p.y >= 0 && p.y <= size * resolution)
+    }
+  })
+
+  it('faces the robot the way it is moving', () => {
+    // The fixture is the only robot anyone can watch until `state.pose` is published, so a nose
+    // pointing backwards here reads as a broken marker.
+    for (const t of [0, 1_000, 3_500, 6_000]) {
+      const a = fixturePose(64, 0.05, t)
+      const b = fixturePose(64, 0.05, t + 1)
+      const travel = Math.atan2(b.y - a.y, b.x - a.x)
+      // Compared as unit vectors, so 180° and -180° count as the same heading.
+      assert.ok(Math.abs(Math.cos(a.yaw) - Math.cos(travel)) < 5e-3, `cos at ${t} ms`)
+      assert.ok(Math.abs(Math.sin(a.yaw) - Math.sin(travel)) < 5e-3, `sin at ${t} ms`)
     }
   })
 })

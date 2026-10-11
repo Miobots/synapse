@@ -10,11 +10,12 @@ export function createGrid(
   height: number,
   resolution: number,
   fill: CellValue = Cell.Unknown,
+  origin: OccupancyGrid['origin'] = { x: 0, y: 0 },
 ): OccupancyGrid {
   if (width <= 0 || height <= 0) throw new Error('grid must be at least 1x1 cell')
   const cells = new Uint8Array(width * height)
   if (fill !== Cell.Unknown) cells.fill(fill)
-  return { width, height, resolution, cells }
+  return { width, height, resolution, origin, cells }
 }
 
 export function inBounds(grid: OccupancyGrid, col: number, row: number): boolean {
