@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProtocolDefaults, type PosePayload } from '../protocol'
-import { createBrainLink, type LinkSnapshot, type SendCommand } from '../link/client'
+import { createBrainLink, UNSENT, type LinkSnapshot, type SendCommand } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
 
 /**
@@ -78,7 +78,7 @@ export interface LiveLink extends CapabilitySources {
   poseFresh: boolean
   /** The raw link status, for screens that need to know whether the wire is up at all. */
   status: LinkSnapshot['status']
-  /** Ask the Brain to do something; `false` if the wire is down. See {@link SendCommand}. */
+  /** Ask the Brain to do something; resolves with how it ended. See {@link SendCommand}. */
   command: SendCommand
 }
 
@@ -105,7 +105,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
 
   // Stable across renders, so passing it to a memoised screen does not re-render it every tick.
   const command = useCallback<SendCommand>(
-    (topic, payload) => linkRef.current?.command(topic, payload) ?? false,
+    (topic, payload) => linkRef.current?.command(topic, payload) ?? Promise.resolve(UNSENT),
     [],
   )
 

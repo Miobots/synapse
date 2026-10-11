@@ -19,6 +19,7 @@ import {
   newEnvelope,
   encode,
   parse,
+  type AckPayload,
   type CapabilityManifestPayload,
   type CapabilityStatus,
   type HeartbeatPayload,
@@ -36,13 +37,27 @@ export type LinkStatus = 'connecting' | 'connected' | 'offline'
  * Asks the Brain to do something, on the current connection.
  *
  * Commands are requests, never decisions (CLAUDE.md): the app names what it wants and the Brain
- * decides. Returns `false` when the wire is not up, so the caller can say why instead of a tap that
- * quietly does nothing.
+ * decides. So the answer is the Brain's `ACK`, not the fact that we wrote to a socket — the promise
+ * resolves only once the Brain has accepted, refused, or failed to answer (ENVELOPE.md §3). It never
+ * rejects: every ending is something to tell the user, not an exception.
  */
 export type SendCommand = <TTopic extends TopicName>(
   topic: TTopic,
   payload: PayloadFor<TTopic, unknown>,
-) => boolean
+) => Promise<CommandOutcome>
+
+/** How a command ended. Only `accepted` means the Brain took it — and even that is not "finished". */
+export type CommandOutcome =
+  | { status: 'accepted' }
+  /** The Brain, or the robot behind it, said no. `reason` is the publisher's own word for why. */
+  | { status: 'rejected'; reason?: string }
+  /** Nobody answered: the wire was down, dropped, or the ACK never came. `reason` is plain words. */
+  | { status: 'failed'; reason: string }
+
+const UNREACHABLE = "Can't reach the Brain right now."
+
+/** What a command gets when there is no connection to send it on. */
+export const UNSENT: CommandOutcome = { status: 'failed', reason: UNREACHABLE }
 
 export interface LinkSnapshot {
   status: LinkStatus
@@ -124,7 +139,7 @@ export function createBrainLink(options: BrainLinkOptions) {
         ws.onclose = null
         ws.close()
         socket = undefined
-        scheduleReconnect("Can't reach the Brain right now.")
+        scheduleReconnect(UNREACHABLE)
         return
       }
       ws.send(
@@ -158,7 +173,27 @@ export function createBrainLink(options: BrainLinkOptions) {
     return Math.round(backoffMs * factor)
   }
 
+  /** Commands still waiting for their `ACK`, by `corr_id` (ENVELOPE.md §3). */
+  const pending = new Map<
+    string,
+    { resolve: (outcome: CommandOutcome) => void; timer: ReturnType<typeof setTimeout> }
+  >()
+
+  function settle(corrId: string, outcome: CommandOutcome): void {
+    const waiting = pending.get(corrId)
+    if (!waiting) return
+    clearTimeout(waiting.timer)
+    pending.delete(corrId)
+    waiting.resolve(outcome)
+  }
+
+  /** A command whose connection died is told so now, not left to time out on a dead wire. */
+  function failPending(): void {
+    for (const corrId of [...pending.keys()]) settle(corrId, UNSENT)
+  }
+
   function scheduleReconnect(reason: string): void {
+    failPending()
     if (stopped || reconnectTimer) return
     publish({ status: 'offline', reason: statedRefusal ?? reason })
 
@@ -222,6 +257,15 @@ export function createBrainLink(options: BrainLinkOptions) {
         return
       }
 
+      if (envelope.kind === Kind.ACK) {
+        const ack = envelope.payload as AckPayload
+        settle(
+          envelope.corr_id,
+          ack.accepted ? { status: 'accepted' } : { status: 'rejected', reason: ack.reason },
+        )
+        return
+      }
+
       if (envelope.topic === Topics.CAP_MANIFEST) {
         const manifest = envelope.payload as CapabilityManifestPayload
         const now = Date.now()
@@ -247,7 +291,7 @@ export function createBrainLink(options: BrainLinkOptions) {
     ws.onclose = () => {
       stopHeartbeat()
       socket = undefined
-      scheduleReconnect("Can't reach the Brain right now.")
+      scheduleReconnect(UNREACHABLE)
     }
   }
 
@@ -257,6 +301,7 @@ export function createBrainLink(options: BrainLinkOptions) {
     stop(): void {
       stopped = true
       stopHeartbeat()
+      failPending()
       if (reconnectTimer) clearTimeout(reconnectTimer)
       socket?.close()
       socket = undefined
@@ -264,13 +309,26 @@ export function createBrainLink(options: BrainLinkOptions) {
     snapshot(): LinkSnapshot {
       return snapshot
     },
-    command<TTopic extends TopicName>(topic: TTopic, payload: PayloadFor<TTopic, unknown>): boolean {
+    command<TTopic extends TopicName>(
+      topic: TTopic,
+      payload: PayloadFor<TTopic, unknown>,
+    ): Promise<CommandOutcome> {
       const ws = socket
-      if (stopped || !ws || snapshot.status !== 'connected') return false
+      if (stopped || !ws || snapshot.status !== 'connected') return Promise.resolve(UNSENT)
       // Share the connection's outbound sequence counter with the heartbeat, exactly as ENVELOPE §6
       // requires: one counter per connection, not one per topic.
-      ws.send(encode(newEnvelope<TTopic, unknown>({ kind: Kind.CMD, topic, seq: outboundSeq, payload })))
-      return true
+      const envelope = newEnvelope<TTopic, unknown>({ kind: Kind.CMD, topic, seq: outboundSeq, payload })
+      ws.send(encode(envelope))
+
+      // ponytail: one attempt. ENVELOPE §3 allows three retries on the same `idem_key`; add them
+      // here once a lost ACK is actually seen — until then a second tap is the retry.
+      return new Promise((resolve) => {
+        const timer = setTimeout(
+          () => settle(envelope.corr_id, { status: 'failed', reason: "The Brain didn't answer." }),
+          ProtocolDefaults.DEFAULT_COMMAND_TIMEOUT_MS,
+        )
+        pending.set(envelope.corr_id, { resolve, timer })
+      })
     },
   }
 }

@@ -53,6 +53,15 @@ describe('worldFromCell', () => {
     assert.ok(Math.abs(back.x - 1.2) < 1e-9)
     assert.ok(Math.abs(back.y - 0.8) < 1e-9)
   })
+
+  it('stays the inverse on a map that does not start at world zero', () => {
+    // A goal read off the real map has to come back in the robot's frame, not the grid's.
+    const arena = createGrid(160, 120, 0.05, undefined, { x: -3.952, y: -2.949 })
+    const at = placePose(arena, pose(1.2, -0.8, 0))
+    const back = worldFromCell(arena, at.col, at.row)
+    assert.ok(Math.abs(back.x - 1.2) < 1e-9)
+    assert.ok(Math.abs(back.y + 0.8) < 1e-9)
+  })
 })
 
 describe('cellFromViewPoint', () => {

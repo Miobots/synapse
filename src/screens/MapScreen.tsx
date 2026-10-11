@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
@@ -37,8 +37,23 @@ export function MapScreen() {
 
   // A capability the robot never announced is not ours to assume, so an absent `driving` gates the
   // map just like an unavailable one — with a reason that is true rather than invented.
-  const driveState: CapabilityState =
-    driving?.state ?? { status: 'unavailable', reason: "Brian hasn't said it can drive yet." }
+  const driveState: CapabilityState = driving?.state ?? {
+    status: 'unavailable',
+    // With the link down no manifest could have arrived, so that — not the robot's silence — is
+    // the true reason.
+    reason:
+      live.status === 'connected'
+        ? "Brian hasn't said it can drive yet."
+        : "Can't reach the Brain right now.",
+  }
+
+  // The only grid there is today is the dev fixture, and its coordinates are made up. A tap on it
+  // must not become a real goal by accident — a dev build is exactly what gets pointed at the real
+  // robot — so sending from it is opt-in, from the dev HUD, for runs against the Fake Heart.
+  // ponytail: every grid is the fixture until a map topic exists. When a real one arrives, taps on
+  // it are always sent and this switch governs the fixture only.
+  const [demoTaps, setDemoTaps] = useState(false)
+  const latestGoal = useRef<string | undefined>(undefined)
 
   // Until the map topic exists in the protocol, only the dev build has a grid to draw. A production
   // build holds no map rather than a fabricated one — the app must not invent state. The fixture's
@@ -71,8 +86,15 @@ export function MapScreen() {
 
   const { grid, pose, fresh, lastSeenAtMs } = useMap(source)
 
+  const { command } = live
+
   const ask = useCallback(
-    (point: { x: number; y: number }) => {
+    async (point: { x: number; y: number }) => {
+      if (!demoTaps) {
+        setOutcome("Not sent — this is a demo map, not Brian's.")
+        return
+      }
+
       if (driveState.status === 'unavailable') {
         // Never a silent no-op: acknowledge the tap. The reason itself is already on screen, via the
         // shared `CapabilityStateText`, so this line only confirms nothing was sent.
@@ -81,17 +103,30 @@ export function MapScreen() {
       }
 
       const goal: NavGotoPayload = { goal_id: generateUlid(), x: point.x, y: point.y }
-      const sent = live.command(Topics.NAV_GOTO, goal)
-      setOutcome(sent ? 'Asked Brian to go there.' : "Can't reach the Brain right now.")
+      latestGoal.current = goal.goal_id
+      setOutcome('Asking the Brain…')
+
+      // Writing to the socket is not an answer. Only the Brain's ACK says whether the robot is
+      // going, and a refusal or a silence has to be said as plainly as a yes (ENVELOPE.md §3).
+      const result = await command(Topics.NAV_GOTO, goal)
+      // A slow answer to an earlier tap must not overwrite the newer one's.
+      if (latestGoal.current !== goal.goal_id) return
+      setOutcome(
+        result.status === 'accepted'
+          ? 'Accepted — Brian is on its way.'
+          : result.status === 'rejected'
+            ? `Brian said no${result.reason ? `: ${result.reason}` : '.'}`
+            : result.reason,
+      )
     },
-    [driveState.status, live],
+    [driveState.status, command, demoTaps],
   )
 
   // A result from one capability state must not outlive it: if driving goes from available to
   // unavailable, "Asked Brian to go there." is no longer the truth and must not linger.
   useEffect(() => {
     setOutcome(undefined)
-  }, [driveState.status])
+  }, [driveState.status, demoTaps])
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -137,7 +172,7 @@ export function MapScreen() {
         )}
       </View>
 
-      <DriveStatus state={driveState} gridPresent={!!grid} outcome={outcome} />
+      <DriveStatus state={driveState} gridPresent={!!grid} demo={!demoTaps} outcome={outcome} />
 
       {__DEV__ && (
         <DevHud
@@ -146,10 +181,12 @@ export function MapScreen() {
           perCell={perCell}
           connected={connected}
           ticking={ticking}
+          demoTaps={demoTaps}
           onSize={setSize}
           onPerCell={setPerCell}
           onConnect={setConnected}
           onTick={setTicking}
+          onDemoTaps={setDemoTaps}
         />
       )}
     </View>
@@ -166,10 +203,13 @@ export function MapScreen() {
 function DriveStatus({
   state,
   gridPresent,
+  demo,
   outcome,
 }: {
   state: CapabilityState
   gridPresent: boolean
+  /** The map on screen is the fixture and taps on it are not being sent. */
+  demo: boolean
   outcome?: string
 }) {
   const { theme: C } = useTheme()
@@ -192,6 +232,10 @@ function DriveStatus({
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
           Waiting for a map to send Brian to.
         </Text>
+      ) : demo ? (
+        <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
+          This is a demo map, so taps are not sent.
+        </Text>
       ) : state.status === 'available' ? (
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
           Tap the map to send Brian there.
@@ -211,10 +255,12 @@ interface DevHudProps {
   perCell: boolean
   connected: boolean
   ticking: boolean
+  demoTaps: boolean
   onSize: (size: (typeof SIZES)[number]) => void
   onPerCell: (perCell: boolean) => void
   onConnect: (connected: boolean) => void
   onTick: (ticking: boolean) => void
+  onDemoTaps: (demoTaps: boolean) => void
 }
 
 function DevHud({
@@ -223,10 +269,12 @@ function DevHud({
   perCell,
   connected,
   ticking,
+  demoTaps,
   onSize,
   onPerCell,
   onConnect,
   onTick,
+  onDemoTaps,
 }: DevHudProps) {
   const { theme: C } = useTheme()
   const fps = useFrameRate()
@@ -253,6 +301,7 @@ function DevHud({
         <Chip label={connected ? 'Disconnect' : 'Reconnect'} active={!connected} onPress={() => onConnect(!connected)} />
         <Chip label={ticking ? 'Pause' : 'Play'} active={!ticking} onPress={() => onTick(!ticking)} />
         <Chip label={perCell ? 'Batched path' : 'Per-cell rects'} active={perCell} onPress={() => onPerCell(!perCell)} />
+        <Chip label={demoTaps ? 'Stop sending taps' : 'Send taps (Fake Heart)'} active={demoTaps} onPress={() => onDemoTaps(!demoTaps)} />
         {SIZES.map((s) => (
           <Chip key={s} label={`${s}²`} active={size === s} onPress={() => onSize(s)} />
         ))}

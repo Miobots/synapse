@@ -31,7 +31,10 @@ export function placePose(grid: OccupancyGrid, pose: PosePayload): PoseLocation 
  * position, so a cell we read off the screen and a pose we place onto it agree by construction.
  */
 export function worldFromCell(grid: OccupancyGrid, col: number, row: number): { x: number; y: number } {
-  return { x: col * grid.resolution, y: (grid.height - row) * grid.resolution }
+  return {
+    x: grid.origin.x + col * grid.resolution,
+    y: grid.origin.y + (grid.height - row) * grid.resolution,
+  }
 }
 
 export interface ViewSize {

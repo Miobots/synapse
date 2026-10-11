@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, type ReactElement } from 'react'
-import { View, type LayoutChangeEvent } from 'react-native'
+import { Pressable, View, type LayoutChangeEvent } from 'react-native'
 import Svg, { Circle, G, Path, Polygon, Rect } from 'react-native-svg'
 import { useTheme } from '../context/ThemeContext'
 import type { PosePayload } from '../protocol'
@@ -55,26 +55,36 @@ export const MapView = memo(function MapView({ grid, pose, perCell, onTap }: Map
   }
 
   return (
-    <View style={{ flex: 1 }} onLayout={handleLayout}>
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMidYMid meet"
-        onPress={handlePress}
-      >
-        <Rect x={0} y={0} width={width} height={height} fill={C.mapUnknown} />
-        {perCell ? (
-          <Cells grid={grid} />
-        ) : (
-          <>
-            <Path d={freePath} fill={C.mapFree} />
-            <Path d={occupiedPath} fill={C.mapOccupied} />
-          </>
-        )}
-        {pose && <PoseMarker pose={pose} grid={grid} />}
-      </Svg>
-    </View>
+    // The wrapper takes the press and the drawing under it takes no touches, so `locationX/Y` are
+    // always relative to the box `onLayout` measured. Left on the `<Svg>` they are relative to
+    // whichever native view was hit, which is not guaranteed to be that box. Not an accessibility
+    // element: a screen reader's "activate" carries no position, so it could only send a wrong goal.
+    <Pressable
+      style={{ flex: 1 }}
+      accessible={false}
+      onLayout={handleLayout}
+      onPress={handlePress}
+    >
+      <View style={{ flex: 1, pointerEvents: 'none' }}>
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <Rect x={0} y={0} width={width} height={height} fill={C.mapUnknown} />
+          {perCell ? (
+            <Cells grid={grid} />
+          ) : (
+            <>
+              <Path d={freePath} fill={C.mapFree} />
+              <Path d={occupiedPath} fill={C.mapOccupied} />
+            </>
+          )}
+          {pose && <PoseMarker pose={pose} grid={grid} />}
+        </Svg>
+      </View>
+    </Pressable>
   )
 })
 
