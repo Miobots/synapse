@@ -95,7 +95,9 @@ export function fixturePose(
     // The view puts row 0 at the top, so a larger row is a lower `y` in metres.
     x: col * resolution,
     y: (size - row) * resolution,
-    yaw: angle + Math.PI / 2,
+    // Rows grow downward, so the loop runs clockwise on the y-up map and its tangent is
+    // -(angle + 90°). `angle + 90°` drew the nose pointing back along the path.
+    yaw: -(angle + Math.PI / 2),
     confidence: 0.9,
   }
 }

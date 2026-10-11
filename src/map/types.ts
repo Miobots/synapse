@@ -27,7 +27,13 @@ export interface OccupancyGrid {
   height: number
   /** Metres per cell, so a pose in metres can be placed onto the grid. */
   resolution: number
-  /** Row-major, length `width * height`. */
+  /**
+   * World position, in metres, of the grid's bottom-left corner — the `origin` of a ROS map. A real
+   * map rarely starts at (0, 0): Heart's `home_arena` starts at (-3.952, -2.949), and ignoring that
+   * draws the robot about four metres from where it is.
+   */
+  origin: { x: number; y: number }
+  /** Row-major, length `width * height`. Row 0 is the top of the map — the largest `y`. */
   cells: Uint8Array
 }
 

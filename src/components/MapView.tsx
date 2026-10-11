@@ -85,8 +85,8 @@ const MARKER_CELLS = 3
 function PoseMarker({ pose, grid }: { pose: PosePayload; grid: OccupancyGrid }) {
   const { theme: C } = useTheme()
 
-  const cx = pose.x / grid.resolution
-  const cy = grid.height - pose.y / grid.resolution
+  const cx = (pose.x - grid.origin.x) / grid.resolution
+  const cy = grid.height - (pose.y - grid.origin.y) / grid.resolution
   // SVG rotates clockwise on a y-down canvas; the robot's yaw is counter-clockwise on a y-up map,
   // and the two flips cancel into a single negation.
   const degrees = (-pose.yaw * 180) / Math.PI
