@@ -20,8 +20,8 @@ export interface PoseLocation {
  */
 export function placePose(grid: OccupancyGrid, pose: PosePayload): PoseLocation {
   return {
-    col: pose.x / grid.resolution,
-    row: grid.height - pose.y / grid.resolution,
+    col: (pose.x - grid.origin.x) / grid.resolution,
+    row: grid.height - (pose.y - grid.origin.y) / grid.resolution,
     degrees: (-pose.yaw * 180) / Math.PI,
   }
 }

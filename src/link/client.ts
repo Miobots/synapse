@@ -40,9 +40,10 @@ export interface LinkSnapshot {
    */
   halfAtMs: { heart?: number; brain?: number }
   /**
-   * Latest `state.pose` telemetry, and when it arrived. Telemetry is "now": it is dropped when the
-   * link goes down rather than kept, so the map screen decides whether the robot is still where it
-   * says by comparing `poseAtMs` against the clock.
+   * Latest `state.pose` telemetry, and when it arrived. It is kept when the link goes down, like the
+   * capabilities, so the map can still draw the last known position — which is exactly why it must
+   * never be shown as live without checking `poseAtMs` against the clock (`useBrainLink` does, as
+   * `poseFresh`).
    */
   pose?: PosePayload
   poseAtMs?: number

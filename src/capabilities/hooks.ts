@@ -65,12 +65,17 @@ export function useCapabilities(sources: CapabilitySources) {
  * A live link, split into the two capability halves S1.2 describes, plus the robot's position.
  *
  * The pose rides the same link because it is the robot telling us where it is on the same wire that
- * tells us what it can do. It is telemetry, so it is last-received rather than accumulated: the map
- * screen keeps the last one and shows them turning grey by comparing `poseAtMs` to now.
+ * tells us what it can do. It is telemetry, so it is last-received rather than accumulated: the
+ * last one is kept, and `poseFresh` says whether it is still arriving.
  */
 export interface LiveLink extends CapabilitySources {
   pose?: PosePayload
   poseAtMs?: number
+  /**
+   * Whether `pose` is still arriving. Judged on the pose's own clock, exactly like a manifest half:
+   * the Brain being up says nothing about a robot that has gone quiet.
+   */
+  poseFresh: boolean
   /** The raw link status, for screens that need to know whether the wire is up at all. */
   status: LinkSnapshot['status']
 }
@@ -108,6 +113,10 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       capabilities: snapshot.capabilities,
       pose: snapshot.pose,
       poseAtMs: snapshot.poseAtMs,
+      // ponytail: the pose shares the manifest's 30 s window, so "the robot went quiet" is one
+      // clock. Give it a tighter window of its own once something publishes `state.pose` and its
+      // real rate is known.
+      poseFresh: isFresh(snapshot.poseAtMs),
       status: snapshot.status,
     }
   }, [snapshot, now])
