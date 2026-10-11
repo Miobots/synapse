@@ -56,7 +56,10 @@ export function MapScreen() {
     // the wire is not.
     const grid = __DEV__ ? feed.snapshot?.grid : undefined
     const pose = live.pose ?? (__DEV__ ? feed.snapshot?.pose : undefined)
-    const fresh = (__DEV__ && connected) || live.status === 'connected'
+    // Fresh means what is on screen is still arriving. Once a live pose has been seen the marker is
+    // the robot's, so it is fresh only on the robot's own clock — a Brain that is still up must not
+    // keep a dead robot looking alive. Before that, only the dev fixture is being drawn.
+    const fresh = live.pose ? live.poseFresh : __DEV__ && connected
     return grid || pose
       ? {
           fresh,
@@ -64,7 +67,7 @@ export function MapScreen() {
           lastSeenAtMs: live.poseAtMs ?? (__DEV__ ? feed.lastSeenAtMs : undefined),
         }
       : { fresh: false }
-  }, [feed.snapshot, feed.lastSeenAtMs, live.pose, live.poseAtMs, live.status, connected])
+  }, [feed.snapshot, feed.lastSeenAtMs, live.pose, live.poseAtMs, live.poseFresh, connected])
 
   const { grid, pose, fresh, lastSeenAtMs } = useMap(source)
 

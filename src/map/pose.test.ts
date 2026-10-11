@@ -18,6 +18,14 @@ describe('placePose', () => {
     assert.equal(at.row, 30)
   })
 
+  it('measures from the map origin, not from world zero', () => {
+    // Heart's `home_arena` map: 5 cm cells, bottom-left corner at (-3.952, -2.949).
+    const arena = createGrid(160, 120, 0.05, undefined, { x: -3.952, y: -2.949 })
+    const at = placePose(arena, pose(0, 0, 0))
+    assert.ok(Math.abs(at.col - 79.04) < 1e-9)
+    assert.ok(Math.abs(at.row - (120 - 58.98)) < 1e-9)
+  })
+
   it('flips the row, because the canvas grows downward and the robot does not', () => {
     const near = placePose(grid, pose(0, 0.1, 0))
     const far = placePose(grid, pose(0, 2.4, 0))

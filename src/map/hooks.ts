@@ -41,7 +41,9 @@ export function useMap(source: MapSource): MergedMap {
       grid: live?.grid ?? lastKnown.current.grid,
       pose: live?.pose ?? lastKnown.current.pose,
       fresh: source.fresh,
-      lastSeenAtMs: source.lastSeenAtMs ?? lastKnown.current.seenAtMs,
+      // While stale, the stamp is when we last saw it fresh — never the source's own clock, which
+      // may keep running and would walk "Cached · HH:MM" forward to the present.
+      lastSeenAtMs: source.fresh ? source.lastSeenAtMs : lastKnown.current.seenAtMs,
     }
   }, [source.fresh, source.snapshot, source.lastSeenAtMs])
 }
