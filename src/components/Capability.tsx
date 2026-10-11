@@ -1,6 +1,7 @@
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { font } from '../theme'
+import { CapabilityStateText } from './CapabilityStateText'
 import type { CapabilityState } from '../capabilities/merge'
 
 // Defined once, in the merge that produces it. This file previously declared its own
@@ -52,12 +53,7 @@ export function Capability({ name, title, state, onPress, style }: CapabilityPro
         </Text>
       </Pressable>
 
-      {state.status === 'degraded' && (
-        <Text style={{ color: C.yellow, fontSize: 12, ...font(500) }}>{state.note}</Text>
-      )}
-      {state.status === 'unavailable' && (
-        <Text style={{ color: C.danger, fontSize: 12, ...font(500) }}>{state.reason}</Text>
-      )}
+      <CapabilityStateText state={state} />
     </View>
   )
 }

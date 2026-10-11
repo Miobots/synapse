@@ -25,3 +25,39 @@ export function placePose(grid: OccupancyGrid, pose: PosePayload): PoseLocation 
     degrees: (-pose.yaw * 180) / Math.PI,
   }
 }
+
+/**
+ * S2.3 — the world point (metres) at a cell's top-left corner. The exact inverse of `placePose`'s
+ * position, so a cell we read off the screen and a pose we place onto it agree by construction.
+ */
+export function worldFromCell(grid: OccupancyGrid, col: number, row: number): { x: number; y: number } {
+  return {
+    x: grid.origin.x + col * grid.resolution,
+    y: grid.origin.y + (grid.height - row) * grid.resolution,
+  }
+}
+
+export interface ViewSize {
+  width: number
+  height: number
+}
+
+/**
+ * Where a tap landed, in grid cells.
+ *
+ * The map is drawn with `preserveAspectRatio="xMidYMid meet"`: the grid is scaled by the smaller of
+ * the two ratios and centred, so the leftover space is letterboxing, not map. Tap coordinates arrive
+ * in view pixels, so this has to undo that same fit — get it wrong and every goal lands a few cells
+ * off, which is exactly the "tapped there, robot went there" bug S2.3 is about. Kept pure, next to
+ * the forward transform, so a test pins it instead of a finger.
+ */
+export function cellFromViewPoint(
+  grid: OccupancyGrid,
+  view: ViewSize,
+  point: { x: number; y: number },
+): { col: number; row: number } {
+  const scale = Math.min(view.width / grid.width, view.height / grid.height)
+  const offsetX = (view.width - grid.width * scale) / 2
+  const offsetY = (view.height - grid.height * scale) / 2
+  return { col: (point.x - offsetX) / scale, row: (point.y - offsetY) / scale }
+}

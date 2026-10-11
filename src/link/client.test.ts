@@ -291,4 +291,89 @@ describe('createBrainLink', () => {
     socket.onclose!()
     assert.equal(FakeSocket.last, before, 'no new socket should be opened after stop()')
   })
+
+  /** Connects, sends one `nav.goto`, and hands back the command as it went out on the wire. */
+  function ask() {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    const outcome = link.command(Topics.NAV_GOTO, { goal_id: 'goal-1', x: 1.5, y: 2 })
+    return { link, socket, outcome, sent: decode(socket.sent[socket.sent.length - 1]!) }
+  }
+
+  /** The Brain's answer to a command: same `corr_id`, its own sequence (ENVELOPE.md §3). */
+  function ack(corrId: string, accepted: boolean, reason?: string) {
+    return newEnvelope({
+      kind: Kind.ACK,
+      topic: Topics.NAV_GOTO,
+      corr_id: corrId,
+      payload: { accepted, ...(reason ? { reason } : {}) },
+      seq: hubSeq,
+    })
+  }
+
+  it('asks the Brain to navigate as a command, and waits for its answer (M-84)', async () => {
+    const { link, socket, outcome, sent } = ask()
+
+    assert.equal(sent.kind, Kind.CMD)
+    assert.equal(sent.topic, Topics.NAV_GOTO)
+    assert.deepEqual(sent.payload, { goal_id: 'goal-1', x: 1.5, y: 2 })
+
+    // Writing to the socket is not an answer: an ACK for some other command settles nothing.
+    let settled = false
+    void outcome.then(() => (settled = true))
+    socket.deliver(ack('someone-elses', true))
+    await Promise.resolve()
+    assert.equal(settled, false)
+
+    socket.deliver(ack(sent.corr_id, true))
+    assert.deepEqual(await outcome, { status: 'accepted' })
+
+    link.stop()
+  })
+
+  it('reports a refusal with the reason the Brain gave, not as a success', async () => {
+    const { link, socket, outcome, sent } = ask()
+
+    socket.deliver(ack(sent.corr_id, false, 'low_battery'))
+
+    assert.deepEqual(await outcome, { status: 'rejected', reason: 'low_battery' })
+    link.stop()
+  })
+
+  it('gives up when the Brain never answers, instead of leaving the tap hanging', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { link, outcome } = ask()
+
+    t.mock.timers.tick(ProtocolDefaults.DEFAULT_COMMAND_TIMEOUT_MS)
+
+    assert.deepEqual(await outcome, { status: 'failed', reason: "The Brain didn't answer." })
+    link.stop()
+  })
+
+  it('fails a waiting command when the connection drops or the link is stopped', async () => {
+    const dropped = ask()
+    dropped.socket.onclose!()
+    assert.deepEqual(await dropped.outcome, {
+      status: 'failed',
+      reason: "Can't reach the Brain right now.",
+    })
+    dropped.link.stop()
+
+    const stopped = ask()
+    stopped.link.stop()
+    assert.equal((await stopped.outcome).status, 'failed')
+  })
+
+  it('does not send before the handshake is accepted, and says why', async () => {
+    const { link, socket } = start()
+    socket.onopen!()
+
+    const outcome = await link.command(Topics.NAV_GOTO, { goal_id: 'g', x: 0, y: 0 })
+
+    assert.deepEqual(outcome, { status: 'failed', reason: "Can't reach the Brain right now." })
+    assert.equal(socket.sent.filter((raw) => decode(raw).topic === Topics.NAV_GOTO).length, 0)
+
+    link.stop()
+  })
 })

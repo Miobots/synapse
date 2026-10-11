@@ -1,9 +1,10 @@
-import { memo, useMemo, type ReactElement } from 'react'
+import { memo, useMemo, useState, type ReactElement } from 'react'
+import { Pressable, View, type LayoutChangeEvent } from 'react-native'
 import Svg, { Circle, G, Path, Polygon, Rect } from 'react-native-svg'
 import { useTheme } from '../context/ThemeContext'
 import type { PosePayload } from '../protocol'
-import { buildOccupancyPath } from '../map/grid'
-import { placePose } from '../map/pose'
+import { buildOccupancyPath, inBounds } from '../map/grid'
+import { cellFromViewPoint, placePose, worldFromCell } from '../map/pose'
 import { Cell, type OccupancyGrid } from '../map/types'
 
 interface MapViewProps {
@@ -15,6 +16,8 @@ interface MapViewProps {
    * The default, `false`, is the batched single-`<Path>` render (see `buildOccupancyPath`).
    */
   perCell?: boolean
+  /** S2.3 — called with the world point (metres) under a tap on the map. */
+  onTap?: (point: { x: number; y: number }) => void
 }
 
 /**
@@ -23,32 +26,65 @@ interface MapViewProps {
  * The background is one `<Rect>` in the "unknown" colour; only free and occupied cells are drawn on
  * top. Unknown is the majority of a real map, so painting it as the background rather than as cells
  * keeps the work proportional to what is actually known.
+ *
+ * Taps are hit-tested against the same fit the drawing uses (see `cellFromViewPoint`), so the cell
+ * under the finger is the cell the goal is sent to. A tap in the letterbox is ignored.
  */
-export const MapView = memo(function MapView({ grid, pose, perCell }: MapViewProps) {
+export const MapView = memo(function MapView({ grid, pose, perCell, onTap }: MapViewProps) {
   const { theme: C } = useTheme()
   const { width, height } = grid
+  const [view, setView] = useState<{ width: number; height: number }>()
 
   const freePath = useMemo(() => buildOccupancyPath(grid, Cell.Free), [grid])
   const occupiedPath = useMemo(() => buildOccupancyPath(grid, Cell.Occupied), [grid])
 
+  function handleLayout(event: LayoutChangeEvent): void {
+    const { width: w, height: h } = event.nativeEvent.layout
+    setView({ width: w, height: h })
+  }
+
+  function handlePress(event: { nativeEvent: { locationX: number; locationY: number } }): void {
+    if (!onTap || !view) return
+    const { locationX, locationY } = event.nativeEvent
+    const cell = cellFromViewPoint(grid, view, { x: locationX, y: locationY })
+    const col = Math.floor(cell.col)
+    const row = Math.floor(cell.row)
+    if (!inBounds(grid, col, row)) return
+    // The centre of the tapped cell, so the goal is a definite spot rather than a finger-offset.
+    onTap(worldFromCell(grid, col + 0.5, row + 0.5))
+  }
+
   return (
-    <Svg
-      width="100%"
-      height="100%"
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
+    // The wrapper takes the press and the drawing under it takes no touches, so `locationX/Y` are
+    // always relative to the box `onLayout` measured. Left on the `<Svg>` they are relative to
+    // whichever native view was hit, which is not guaranteed to be that box. Not an accessibility
+    // element: a screen reader's "activate" carries no position, so it could only send a wrong goal.
+    <Pressable
+      style={{ flex: 1 }}
+      accessible={false}
+      onLayout={handleLayout}
+      onPress={handlePress}
     >
-      <Rect x={0} y={0} width={width} height={height} fill={C.mapUnknown} />
-      {perCell ? (
-        <Cells grid={grid} />
-      ) : (
-        <>
-          <Path d={freePath} fill={C.mapFree} />
-          <Path d={occupiedPath} fill={C.mapOccupied} />
-        </>
-      )}
-      {pose && <PoseMarker pose={pose} grid={grid} />}
-    </Svg>
+      <View style={{ flex: 1, pointerEvents: 'none' }}>
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <Rect x={0} y={0} width={width} height={height} fill={C.mapUnknown} />
+          {perCell ? (
+            <Cells grid={grid} />
+          ) : (
+            <>
+              <Path d={freePath} fill={C.mapFree} />
+              <Path d={occupiedPath} fill={C.mapOccupied} />
+            </>
+          )}
+          {pose && <PoseMarker pose={pose} grid={grid} />}
+        </Svg>
+      </View>
+    </Pressable>
   )
 })
 
