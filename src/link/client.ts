@@ -26,10 +26,14 @@ import {
   type HelloPayload,
   type PayloadFor,
   type PosePayload,
+  type BatteryPayload,
+  type MapSnapshotPayload,
+  decodeCells,
   type TopicName,
   type WelcomePayload,
 } from '../protocol/index.ts'
 import { halfOf } from '../capabilities/catalog.ts'
+import type { OccupancyGrid } from '../map/types.ts'
 
 export type LinkStatus = 'connecting' | 'connected' | 'offline'
 
@@ -76,6 +80,10 @@ export interface LinkSnapshot {
    */
   pose?: PosePayload
   poseAtMs?: number
+  map?: OccupancyGrid
+  mapAtMs?: number
+  battery?: BatteryPayload
+  batteryAtMs?: number
   /** Why the link is down, when we know. Rendered to the user, so it stays plain. */
   reason?: string
 }
@@ -281,6 +289,20 @@ export function createBrainLink(options: BrainLinkOptions) {
 
       if (envelope.topic === Topics.STATE_POSE) {
         publish({ pose: envelope.payload as PosePayload, poseAtMs: Date.now() })
+        return
+      }
+
+      if (envelope.topic === Topics.MAP_SNAPSHOT) {
+        const map = envelope.payload as MapSnapshotPayload
+        publish({
+          map: { width: map.width, height: map.height, resolution: map.resolution, origin: map.origin, cells: decodeCells(map) },
+          mapAtMs: Date.now(),
+        })
+        return
+      }
+
+      if (envelope.topic === Topics.STATE_BATTERY) {
+        publish({ battery: envelope.payload as BatteryPayload, batteryAtMs: Date.now() })
       }
     }
 

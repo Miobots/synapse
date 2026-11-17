@@ -63,6 +63,16 @@ describe('mergeRobotStatus', () => {
     assert.equal(tile(merged, 'health').tone, undefined)
   })
 
+  it('shows only published telemetry and marks an old battery reading as cached', () => {
+    const partial: RobotStatusSnapshot = { batteryPct: 95 }
+    const live = mergeRobotStatus(partial, null, bothUp)
+    assert.deepEqual(live.tiles.map((t) => t.value), ['95%', 'Unknown', 'Unknown', 'Unknown'])
+
+    const stale = mergeRobotStatus(null, { snapshot: partial, seenAtMs: 1_000 }, bothUp)
+    assert.equal(tile(stale, 'battery').fresh, false)
+    assert.equal(stale.links.find((link) => link.id === 'robot')?.up, true)
+  })
+
   it('colours health by what the robot reported', () => {
     const faulted = mergeRobotStatus({ ...snapshot, health: 'fault' }, null, bothUp)
     assert.equal(tile(faulted, 'health').value, 'Fault')

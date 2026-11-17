@@ -205,6 +205,30 @@ describe('createBrainLink', () => {
     link.stop()
   })
 
+  it('decodes a map snapshot and records battery telemetry from the wire', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    socket.deliver(newEnvelope({
+      kind: Kind.TELEM,
+      topic: Topics.MAP_SNAPSHOT,
+      payload: { width: 4, height: 3, resolution: 0.05, origin: { x: -3.952, y: -2.949 }, cells: [0, 4, 1, 3, 2, 1, 1, 4] },
+      seq: hubSeq,
+    }))
+    socket.deliver(newEnvelope({
+      kind: Kind.TELEM,
+      topic: Topics.STATE_BATTERY,
+      payload: { percentage: 95, voltage: 12.2, is_charging: false },
+      seq: hubSeq,
+    }))
+
+    assert.deepEqual([...link.snapshot().map!.cells], [0, 0, 0, 0, 1, 1, 1, 2, 1, 1, 1, 1])
+    assert.deepEqual(link.snapshot().map!.origin, { x: -3.952, y: -2.949 })
+    assert.equal(link.snapshot().battery?.percentage, 95)
+    assert.ok(link.snapshot().mapAtMs && link.snapshot().batteryAtMs)
+    link.stop()
+  })
+
   it("stamps each half separately, so the Brain's ticks cannot keep a dead robot fresh", async () => {
     // S1.4: kill the Fake Heart and the robot must go stale while the Brain half stays live.
     const { link, socket } = start()

@@ -78,14 +78,13 @@ export function HomeScreen() {
 
   const { items, missing, lastSeenAtMs } = useCapabilities(sources)
 
-  // On `live` the status snapshot is deliberately absent: battery, room and activity ride on
-  // state.pose / state.battery, which are P2.4 in M1-W3 and do not exist yet. The tiles then
-  // render as unknown rather than inventing a number, which is the honest failure.
+  // Battery is real telemetry; room, activity and health stay unknown until their publishers exist.
   const { tiles, links } = useRobotStatus({
     heart: {
       fresh: sources.heart.fresh,
-      snapshot: STATUS_BY_COMBO[combo],
-      lastSeenAtMs: sources.heart.lastSeenAtMs,
+      snapshot: combo === 'live' && live.battery ? { batteryPct: live.battery.percentage } : STATUS_BY_COMBO[combo],
+      snapshotFresh: combo === 'live' ? live.batteryFresh : sources.heart.fresh,
+      lastSeenAtMs: combo === 'live' ? live.batteryAtMs : sources.heart.lastSeenAtMs,
     },
     brain: {
       fresh: sources.brain.fresh,
@@ -136,7 +135,6 @@ export function HomeScreen() {
             name={item.label}
             title={item.action}
             state={item.state}
-            onPress={() => {}}
           />
         ))}
       </ScrollView>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ProtocolDefaults, type PosePayload } from '../protocol'
+import { ProtocolDefaults, type PosePayload, type BatteryPayload } from '../protocol'
 import { createBrainLink, UNSENT, type LinkSnapshot, type SendCommand } from '../link/client'
 import { mergeCapabilities, type CapabilitySources } from './merge'
+import type { OccupancyGrid } from '../map/types'
 
 /**
  * A half is stale once it has missed three publish ticks — the same three-miss rule the heartbeat
@@ -71,6 +72,12 @@ export function useCapabilities(sources: CapabilitySources) {
 export interface LiveLink extends CapabilitySources {
   pose?: PosePayload
   poseAtMs?: number
+  map?: OccupancyGrid
+  mapAtMs?: number
+  mapFresh: boolean
+  battery?: BatteryPayload
+  batteryAtMs?: number
+  batteryFresh: boolean
   /**
    * Whether `pose` is still arriving. Judged on the pose's own clock, exactly like a manifest half:
    * the Brain being up says nothing about a robot that has gone quiet.
@@ -126,6 +133,12 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       capabilities: snapshot.capabilities,
       pose: snapshot.pose,
       poseAtMs: snapshot.poseAtMs,
+      map: snapshot.map,
+      mapAtMs: snapshot.mapAtMs,
+      mapFresh: isFresh(snapshot.mapAtMs),
+      battery: snapshot.battery,
+      batteryAtMs: snapshot.batteryAtMs,
+      batteryFresh: isFresh(snapshot.batteryAtMs),
       // ponytail: the pose shares the manifest's 30 s window, so "the robot went quiet" is one
       // clock. Give it a tighter window of its own once something publishes `state.pose` and its
       // real rate is known.
