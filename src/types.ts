@@ -5,3 +5,4 @@ export type Screen =
   | 'controls'
   | 'call'
   | 'tasks'
+  | 'devices'

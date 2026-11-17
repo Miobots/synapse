@@ -52,7 +52,8 @@ export type SendCommand = <TTopic extends TopicName>(
 
 /** How a command ended. Only `accepted` means the Brain took it — and even that is not "finished". */
 export type CommandOutcome =
-  | { status: 'accepted' }
+  /** `name` is set when the ACK names a device, as the answer to `sys.pair_confirm` does. */
+  | { status: 'accepted'; name?: string }
   /** The Brain, or the robot behind it, said no. `reason` is the publisher's own word for why. */
   | { status: 'rejected'; reason?: string }
   /** Nobody answered: the wire was down, dropped, or the ACK never came. `reason` is plain words. */
@@ -269,7 +270,9 @@ export function createBrainLink(options: BrainLinkOptions) {
         const ack = envelope.payload as AckPayload
         settle(
           envelope.corr_id,
-          ack.accepted ? { status: 'accepted' } : { status: 'rejected', reason: ack.reason },
+          ack.accepted
+            ? { status: 'accepted', ...(ack.name ? { name: ack.name } : {}) }
+            : { status: 'rejected', reason: ack.reason },
         )
         return
       }
