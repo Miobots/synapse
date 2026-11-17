@@ -10,7 +10,7 @@ import { pairingCode } from '../pairing/code'
  * Pair a laptop (S9.2). The laptop shows a six-digit code after `bun run pair`; typing it here is
  * what lets the Brain issue that laptop its own token. Finding a laptop on the network never is.
  */
-export function DevicesScreen({ live }: { live: LiveLink }) {
+export function DevicesScreen({ live, pushStatus }: { live: LiveLink; pushStatus: string }) {
   const { theme: C } = useTheme()
   const [input, setInput] = useState('')
   const [outcome, setOutcome] = useState<string>()
@@ -82,6 +82,10 @@ export function DevicesScreen({ live }: { live: LiveLink }) {
         <Text style={{ color: C.muted, fontSize: 13, ...font(500) }}>Not connected to the Brain, so pairing is unavailable.</Text>
       )}
       {outcome && <Text style={{ color: C.text, fontSize: 14, ...font(600) }}>{outcome}</Text>}
+
+      <View style={{ height: 1, backgroundColor: C.border, marginVertical: 6 }} />
+      <Text style={{ color: C.text, fontSize: 17, ...font(800) }}>Approval notifications</Text>
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, ...font(500) }}>{pushStatus}</Text>
 
       <View style={{ height: 1, backgroundColor: C.border, marginVertical: 6 }} />
       <Text style={{ color: C.text, fontSize: 17, ...font(800) }}>Paired laptops</Text>
