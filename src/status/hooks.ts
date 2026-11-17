@@ -3,7 +3,11 @@ import { mergeRobotStatus } from './merge'
 import type { LastKnownSnapshot, RobotStatusSources } from './types'
 
 export function useRobotStatus(sources: RobotStatusSources) {
-  const lastKnown = useRef<LastKnownSnapshot | null>(null)
+  const lastKnown = useRef<LastKnownSnapshot | null>(
+    sources.heart.snapshot
+      ? { snapshot: sources.heart.snapshot, seenAtMs: sources.heart.lastSeenAtMs }
+      : null,
+  )
 
   const snapshotFresh = sources.heart.snapshotFresh ?? sources.heart.fresh
 

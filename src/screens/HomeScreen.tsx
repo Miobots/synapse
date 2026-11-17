@@ -6,7 +6,7 @@ import { Capability } from '../components/Capability'
 import { LinkHealth } from '../components/LinkHealth'
 import { StatusTile } from '../components/StatusTile'
 import { StalenessBanner } from '../components/StalenessBanner'
-import { useBrainLink, useCapabilities } from '../capabilities/hooks'
+import { useCapabilities, type LiveLink } from '../capabilities/hooks'
 import { useRobotStatus } from '../status/hooks'
 import type { CapabilitySources } from '../capabilities/merge'
 import type { RobotStatusSnapshot } from '../status/types'
@@ -67,13 +67,10 @@ const COMBO_LABEL: Record<Combo, string> = {
   none: 'None',
 }
 
-export function HomeScreen() {
+export function HomeScreen({ live }: { live: LiveLink }) {
   const { theme: C } = useTheme()
   const [combo, setCombo] = useState<Combo>('live')
 
-  // A phone cannot reach the laptop at `localhost`, so the address comes from the environment:
-  // EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start. Unset, it keeps the default.
-  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
   const sources = combo === 'live' ? live : FIXTURES[combo]
 
   const { items, missing, lastSeenAtMs } = useCapabilities(sources)

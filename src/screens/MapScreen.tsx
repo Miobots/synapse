@@ -7,7 +7,7 @@ import { MapView } from '../components/MapView'
 import { CapabilityStateText } from '../components/CapabilityStateText'
 import { countCells } from '../map/grid'
 import { useDevMapFeed, useFrameRate, useMap } from '../map/hooks'
-import { useBrainLink, useCapabilities } from '../capabilities/hooks'
+import { useCapabilities, type LiveLink } from '../capabilities/hooks'
 import { HeartCapabilities, Topics, generateUlid, type NavGotoPayload } from '../protocol'
 import type { CapabilityState } from '../capabilities/merge'
 import type { MapSource, OccupancyGrid } from '../map/types'
@@ -22,7 +22,7 @@ const SIZES = [64, 128, 256] as const
  * gated *out loud*. If driving is unavailable, the reason is on screen and a tap repeats it rather
  * than doing nothing, because a dead tap reads as a broken app.
  */
-export function MapScreen() {
+export function MapScreen({ live }: { live: LiveLink }) {
   const { theme: C } = useTheme()
 
   const [connected, setConnected] = useState(true)
@@ -31,7 +31,6 @@ export function MapScreen() {
   const [perCell, setPerCell] = useState(false)
   const [outcome, setOutcome] = useState<string>()
 
-  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
   const { items } = useCapabilities(live)
   const driving = items.find((item) => item.id === HeartCapabilities.DRIVING)
 
