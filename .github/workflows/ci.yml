@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          path: miobots-synapse
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          repository: Miobots/protocol
+          path: miobots-protocol
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: miobots-synapse/package-lock.json
+      - run: npm ci
+        working-directory: miobots-synapse
+      - run: npm test
+        working-directory: miobots-synapse
+      - run: npm run typecheck
+        working-directory: miobots-synapse
+      - run: npx expo export --platform android
+        working-directory: miobots-synapse
