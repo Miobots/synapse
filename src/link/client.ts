@@ -19,7 +19,10 @@ import {
   newEnvelope,
   encode,
   parse,
+  createAck,
   type AckPayload,
+  type ApprovalPayload,
+  type Envelope,
   type CapabilityManifestPayload,
   type CapabilityStatus,
   type HeartbeatPayload,
@@ -87,6 +90,11 @@ export interface LinkSnapshot {
   batteryAtMs?: number
   /** Why the link is down, when we know. Rendered to the user, so it stays plain. */
   reason?: string
+  /**
+   * Requests waiting for a human's tap (S5.1). Only answerable on the connection they arrived on —
+   * the Brain ignores an answer from anywhere else — so they are dropped when the link drops.
+   */
+  approvals: ApprovalPayload[]
 }
 
 export interface BrainLinkOptions {
@@ -164,7 +172,7 @@ export function createBrainLink(options: BrainLinkOptions) {
     }, ProtocolDefaults.HEARTBEAT_INTERVAL_MS)
   }
 
-  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {}, halfAtMs: {} }
+  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {}, halfAtMs: {}, approvals: [] }
 
   function publish(next: Partial<LinkSnapshot>): void {
     snapshot = { ...snapshot, ...next }
@@ -187,6 +195,13 @@ export function createBrainLink(options: BrainLinkOptions) {
     string,
     { resolve: (outcome: CommandOutcome) => void; timer: ReturnType<typeof setTimeout> }
   >()
+
+  /** The `sys.approval` command each pending approval arrived as; the answer is its ACK. */
+  const approvalRequests = new Map<string, Envelope<string, unknown>>()
+
+  function publishApprovals(): void {
+    publish({ approvals: [...approvalRequests.values()].map((envelope) => envelope.payload as ApprovalPayload) })
+  }
 
   function settle(corrId: string, outcome: CommandOutcome): void {
     const waiting = pending.get(corrId)
@@ -304,6 +319,13 @@ export function createBrainLink(options: BrainLinkOptions) {
         return
       }
 
+      if (envelope.kind === Kind.CMD && envelope.topic === Topics.SYS_APPROVAL) {
+        // The codec has already checked the payload (isApprovalPayload), arguments included.
+        approvalRequests.set((envelope.payload as ApprovalPayload).approval_id, envelope)
+        publishApprovals()
+        return
+      }
+
       if (envelope.topic === Topics.STATE_BATTERY) {
         publish({ battery: envelope.payload as BatteryPayload, batteryAtMs: Date.now() })
       }
@@ -316,6 +338,8 @@ export function createBrainLink(options: BrainLinkOptions) {
     ws.onclose = () => {
       stopHeartbeat()
       socket = undefined
+      approvalRequests.clear()
+      publishApprovals()
       scheduleReconnect(UNREACHABLE)
     }
   }
@@ -333,6 +357,20 @@ export function createBrainLink(options: BrainLinkOptions) {
     },
     snapshot(): LinkSnapshot {
       return snapshot
+    },
+    /**
+     * A human tapped Approve or Reject. The ACK is the answer (ENVELOPE `sys.approval`). Returns
+     * false when there is nothing to answer any more: it expired, or the link it came on is gone.
+     */
+    answerApproval(approvalId: string, approve: boolean): boolean {
+      const request = approvalRequests.get(approvalId)
+      approvalRequests.delete(approvalId)
+      publishApprovals()
+      const ws = socket
+      if (!request || !ws || snapshot.status !== 'connected') return false
+      if (Date.now() >= (request.payload as ApprovalPayload).expires_at) return false
+      ws.send(encode(createAck(request, approve ? { accepted: true } : { accepted: false, reason: 'Rejected on the phone.' }, outboundSeq)))
+      return true
     },
     command<TTopic extends TopicName>(
       topic: TTopic,

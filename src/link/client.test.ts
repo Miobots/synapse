@@ -400,4 +400,43 @@ describe('createBrainLink', () => {
 
     link.stop()
   })
+
+  it('shows a sys.approval as pending and answers it with an ACK on the same request (S5.1)', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    const request = newEnvelope({
+      kind: Kind.CMD,
+      topic: Topics.SYS_APPROVAL,
+      idem_key: 'approval-ap-1',
+      expires_at: Date.now() + 60_000,
+      payload: { approval_id: 'ap-1', tool_name: 'open_app_or_url', args: { name: 'Spotify' }, expires_at: Date.now() + 60_000 },
+      seq: hubSeq,
+    })
+    socket.deliver(request)
+    assert.deepEqual(seen.at(-1)!.approvals.map((a) => a.approval_id), ['ap-1'])
+
+    assert.equal(link.answerApproval('ap-1', true), true)
+    const answer = decode(socket.sent.at(-1)!)
+    assert.equal(answer.kind, Kind.ACK)
+    assert.equal(answer.corr_id, request.corr_id)
+    assert.deepEqual(answer.payload, { accepted: true })
+    assert.deepEqual(seen.at(-1)!.approvals, [])
+    assert.equal(link.answerApproval('ap-1', true), false, 'an answered request cannot be answered twice')
+    link.stop()
+  })
+
+  it('drops pending approvals when the link drops, since only that connection may answer', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    socket.deliver(newEnvelope({
+      kind: Kind.CMD, topic: Topics.SYS_APPROVAL, idem_key: 'approval-ap-2', expires_at: Date.now() + 60_000,
+      payload: { approval_id: 'ap-2', tool_name: 't', args: {}, expires_at: Date.now() + 60_000 }, seq: hubSeq,
+    }))
+    socket.close()
+    assert.deepEqual(seen.at(-1)!.approvals, [])
+    assert.equal(link.answerApproval('ap-2', true), false)
+    link.stop()
+  })
 })

@@ -51,6 +51,10 @@ them.
 **No device is auto-adopted.** Anything discovered on the network needs a one-time confirmation
 code. Finding a daemon is not consent to use it.
 
+**The approval card is the only way a laptop action is approved** (BRAIN_DECISIONS 27). It shows
+the exact arguments, not a summary, and a countdown. A pending approval can only be answered on
+the connection it arrived on, so it is dropped when the link drops.
+
 ---
 
 ## Vocabulary warning
