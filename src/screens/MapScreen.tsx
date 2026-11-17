@@ -6,6 +6,7 @@ import { formatTime } from '../utils/format'
 import { MapView } from '../components/MapView'
 import { CapabilityStateText } from '../components/CapabilityStateText'
 import { countCells } from '../map/grid'
+import { mapGoalBlockReason } from '../map/goal'
 import { useDevMapFeed, useFrameRate, useMap } from '../map/hooks'
 import { useCapabilities, type LiveLink } from '../capabilities/hooks'
 import { HeartCapabilities, Topics, generateUlid, type NavGotoPayload } from '../protocol'
@@ -88,8 +89,9 @@ export function MapScreen({ live }: { live: LiveLink }) {
 
   const ask = useCallback(
     async (point: { x: number; y: number }) => {
-      if (!live.map && !demoTaps) {
-        setOutcome("Not sent — this is a demo map, not Brian's.")
+      const blocked = mapGoalBlockReason(!!live.map, live.mapFresh, demoTaps)
+      if (blocked) {
+        setOutcome(blocked)
         return
       }
 
@@ -117,14 +119,14 @@ export function MapScreen({ live }: { live: LiveLink }) {
             : result.reason,
       )
     },
-    [driveState.status, command, demoTaps, live.map],
+    [driveState.status, command, demoTaps, live.map, live.mapFresh],
   )
 
   // A result from one capability state must not outlive it: if driving goes from available to
   // unavailable, "Asked Brian to go there." is no longer the truth and must not linger.
   useEffect(() => {
     setOutcome(undefined)
-  }, [driveState.status, demoTaps])
+  }, [driveState.status, demoTaps, live.mapFresh])
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -170,7 +172,7 @@ export function MapScreen({ live }: { live: LiveLink }) {
         )}
       </View>
 
-      <DriveStatus state={driveState} gridPresent={!!grid} demo={!live.map && !demoTaps} outcome={outcome} />
+      <DriveStatus state={driveState} gridPresent={!!grid} demo={!live.map && !demoTaps} staleMap={!!live.map && !live.mapFresh} outcome={outcome} />
 
       {__DEV__ && (
         <DevHud
@@ -203,12 +205,14 @@ function DriveStatus({
   state,
   gridPresent,
   demo,
+  staleMap,
   outcome,
 }: {
   state: CapabilityState
   gridPresent: boolean
   /** The map on screen is the fixture and taps on it are not being sent. */
   demo: boolean
+  staleMap: boolean
   outcome?: string
 }) {
   const { theme: C } = useTheme()
@@ -234,6 +238,10 @@ function DriveStatus({
       ) : demo ? (
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
           This is a demo map, so taps are not sent.
+        </Text>
+      ) : staleMap ? (
+        <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
+          This map is out of date. Taps are not sent until it updates.
         </Text>
       ) : state.status === 'available' ? (
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
