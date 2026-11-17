@@ -45,10 +45,11 @@ export function mergeRobotStatus(
   })
 
   const tiles: StatusTileItem[] = [
-    tile('battery', 'Battery', source ? `${source.batteryPct}%` : 'Unknown'),
+    tile('battery', 'Battery', source?.batteryPct !== undefined ? `${source.batteryPct}%` : 'Unknown'),
+    tile('charging', 'Charging', source?.isCharging === undefined ? 'Unknown' : source.isCharging ? 'Yes' : 'No'),
     tile('room', 'Room', source?.room ?? 'Unknown'),
     tile('activity', 'Doing', source?.activity ?? 'Unknown'),
-    tile('health', 'Health', source ? HEALTH_LABEL[source.health] : 'Unknown', source ? HEALTH_TONE[source.health] : undefined),
+    tile('health', 'Health', source?.health ? HEALTH_LABEL[source.health] : 'Unknown', source?.health ? HEALTH_TONE[source.health] : undefined),
   ]
 
   const links: LinkItem[] = [

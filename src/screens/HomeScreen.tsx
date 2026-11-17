@@ -6,7 +6,7 @@ import { Capability } from '../components/Capability'
 import { LinkHealth } from '../components/LinkHealth'
 import { StatusTile } from '../components/StatusTile'
 import { StalenessBanner } from '../components/StalenessBanner'
-import { useBrainLink, useCapabilities } from '../capabilities/hooks'
+import { useCapabilities, type LiveLink } from '../capabilities/hooks'
 import { useRobotStatus } from '../status/hooks'
 import type { CapabilitySources } from '../capabilities/merge'
 import type { RobotStatusSnapshot } from '../status/types'
@@ -55,8 +55,8 @@ const FIXTURES: Record<Exclude<Combo, 'live'>, CapabilitySources> = {
 }
 
 const STATUS_BY_COMBO: Partial<Record<Combo, RobotStatusSnapshot>> = {
-  'both-fresh': { batteryPct: 84, room: 'Kitchen', activity: 'Docking', health: 'ok' },
-  'heart-only': { batteryPct: 84, room: 'Kitchen', activity: 'Idle', health: 'ok' },
+  'both-fresh': { batteryPct: 84, isCharging: true, room: 'Kitchen', activity: 'Docking', health: 'ok' },
+  'heart-only': { batteryPct: 84, isCharging: false, room: 'Kitchen', activity: 'Idle', health: 'ok' },
 }
 
 const COMBO_LABEL: Record<Combo, string> = {
@@ -67,25 +67,21 @@ const COMBO_LABEL: Record<Combo, string> = {
   none: 'None',
 }
 
-export function HomeScreen() {
+export function HomeScreen({ live }: { live: LiveLink }) {
   const { theme: C } = useTheme()
   const [combo, setCombo] = useState<Combo>('live')
 
-  // A phone cannot reach the laptop at `localhost`, so the address comes from the environment:
-  // EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start. Unset, it keeps the default.
-  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
   const sources = combo === 'live' ? live : FIXTURES[combo]
 
   const { items, missing, lastSeenAtMs } = useCapabilities(sources)
 
-  // On `live` the status snapshot is deliberately absent: battery, room and activity ride on
-  // state.pose / state.battery, which are P2.4 in M1-W3 and do not exist yet. The tiles then
-  // render as unknown rather than inventing a number, which is the honest failure.
+  // Battery is real telemetry; room, activity and health stay unknown until their publishers exist.
   const { tiles, links } = useRobotStatus({
     heart: {
       fresh: sources.heart.fresh,
-      snapshot: STATUS_BY_COMBO[combo],
-      lastSeenAtMs: sources.heart.lastSeenAtMs,
+      snapshot: combo === 'live' && live.battery ? { batteryPct: live.battery.percentage, isCharging: live.battery.is_charging } : STATUS_BY_COMBO[combo],
+      snapshotFresh: combo === 'live' ? live.batteryFresh : sources.heart.fresh,
+      lastSeenAtMs: combo === 'live' ? live.batteryAtMs : sources.heart.lastSeenAtMs,
     },
     brain: {
       fresh: sources.brain.fresh,
@@ -136,7 +132,6 @@ export function HomeScreen() {
             name={item.label}
             title={item.action}
             state={item.state}
-            onPress={() => {}}
           />
         ))}
       </ScrollView>

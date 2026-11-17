@@ -10,6 +10,7 @@ import { CameraScreen } from '../screens/CameraScreen'
 import { ControlsScreen } from '../screens/ControlsScreen'
 import { CallScreen } from '../screens/CallScreen'
 import { TasksScreen } from '../screens/TasksScreen'
+import { useBrainLink } from '../capabilities/hooks'
 import type { Screen } from '../types'
 
 const NAV: { screen: Screen; Icon: typeof Home; label: string }[] = [
@@ -30,6 +31,7 @@ export function AppShell() {
   const { theme: C, isDark } = useTheme()
   const insets = useSafeAreaInsets()
   const [screen, setScreen] = useState<Screen>('home')
+  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -59,8 +61,8 @@ export function AppShell() {
       </View>
 
       <View style={{ flex: 1 }}>
-        {screen === 'home' && <HomeScreen />}
-        {screen === 'map' && <MapScreen />}
+        {screen === 'home' && <HomeScreen live={live} />}
+        {screen === 'map' && <MapScreen live={live} />}
         {screen === 'camera' && <CameraScreen />}
         {screen === 'controls' && <ControlsScreen />}
         {screen === 'call' && <CallScreen />}

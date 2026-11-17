@@ -6,7 +6,7 @@ export function CallScreen() {
   const { theme: C } = useTheme()
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
-      <Text style={{ color: C.muted, fontSize: 14, ...font(500) }}>Call</Text>
+      <Text style={{ color: C.muted, fontSize: 14, ...font(500) }}>Calls are not available yet.</Text>
     </View>
   )
 }

@@ -1,15 +1,17 @@
 import type { SystemHealth } from '../protocol/index.ts'
 
 export interface RobotStatusSnapshot {
-  batteryPct: number
-  room: string
-  activity: string
-  health: SystemHealth
+  batteryPct?: number
+  isCharging?: boolean
+  room?: string
+  activity?: string
+  health?: SystemHealth
 }
 
 export interface StatusSource {
   fresh: boolean
   snapshot?: RobotStatusSnapshot
+  snapshotFresh?: boolean
   lastSeenAtMs?: number
 }
 

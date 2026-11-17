@@ -6,8 +6,9 @@ import { formatTime } from '../utils/format'
 import { MapView } from '../components/MapView'
 import { CapabilityStateText } from '../components/CapabilityStateText'
 import { countCells } from '../map/grid'
+import { mapGoalBlockReason } from '../map/goal'
 import { useDevMapFeed, useFrameRate, useMap } from '../map/hooks'
-import { useBrainLink, useCapabilities } from '../capabilities/hooks'
+import { useCapabilities, type LiveLink } from '../capabilities/hooks'
 import { HeartCapabilities, Topics, generateUlid, type NavGotoPayload } from '../protocol'
 import type { CapabilityState } from '../capabilities/merge'
 import type { MapSource, OccupancyGrid } from '../map/types'
@@ -22,7 +23,7 @@ const SIZES = [64, 128, 256] as const
  * gated *out loud*. If driving is unavailable, the reason is on screen and a tap repeats it rather
  * than doing nothing, because a dead tap reads as a broken app.
  */
-export function MapScreen() {
+export function MapScreen({ live }: { live: LiveLink }) {
   const { theme: C } = useTheme()
 
   const [connected, setConnected] = useState(true)
@@ -31,7 +32,6 @@ export function MapScreen() {
   const [perCell, setPerCell] = useState(false)
   const [outcome, setOutcome] = useState<string>()
 
-  const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
   const { items } = useCapabilities(live)
   const driving = items.find((item) => item.id === HeartCapabilities.DRIVING)
 
@@ -47,42 +47,41 @@ export function MapScreen() {
         : "Can't reach the Brain right now.",
   }
 
-  // The only grid there is today is the dev fixture, and its coordinates are made up. A tap on it
+  // The fallback grid is a dev fixture, and its coordinates are made up. A tap on it
   // must not become a real goal by accident — a dev build is exactly what gets pointed at the real
   // robot — so sending from it is opt-in, from the dev HUD, for runs against the Fake Heart.
-  // ponytail: every grid is the fixture until a map topic exists. When a real one arrives, taps on
-  // it are always sent and this switch governs the fixture only.
+  // Real map taps are sent; this switch governs the fixture only.
   const [demoTaps, setDemoTaps] = useState(false)
   const latestGoal = useRef<string | undefined>(undefined)
 
-  // Until the map topic exists in the protocol, only the dev build has a grid to draw. A production
-  // build holds no map rather than a fabricated one — the app must not invent state. The fixture's
-  // pose stops ticking once a live pose is arriving so the two never fight over the marker.
+  // A production build holds no fabricated map. The fixture moves only until a live map arrives.
   const feed = useDevMapFeed({
     connected: __DEV__ && connected,
-    ticking: __DEV__ && ticking && !live.pose,
+    ticking: __DEV__ && ticking && !live.map,
     size,
   })
 
   const source = useMemo<MapSource>(() => {
     // The fixture exists only in development. A production build must never draw a fabricated map
     // or invent a robot position just because a link came up (CLAUDE.md: the app holds no
-    // authority). So the grid and the fixture pose are both gated on `__DEV__`; the live pose off
-    // the wire is not.
-    const grid = __DEV__ ? feed.snapshot?.grid : undefined
-    const pose = live.pose ?? (__DEV__ ? feed.snapshot?.pose : undefined)
-    // Fresh means what is on screen is still arriving. Once a live pose has been seen the marker is
-    // the robot's, so it is fresh only on the robot's own clock — a Brain that is still up must not
-    // keep a dead robot looking alive. Before that, only the dev fixture is being drawn.
-    const fresh = live.pose ? live.poseFresh : __DEV__ && connected
+    // authority). A real pose is never placed on the fixture's invented coordinates.
+    const grid = live.map ?? (__DEV__ ? feed.snapshot?.grid : undefined)
+    const pose = live.map
+      ? (live.poseFresh ? live.pose : undefined)
+      : (__DEV__ ? feed.snapshot?.pose : undefined)
+    // A stale pose disappears while the map is fresh; if the map itself goes stale, the entire
+    // last-known scene is marked cached by useMap.
+    const fresh = live.map ? live.mapFresh : __DEV__ && connected
     return grid || pose
       ? {
           fresh,
           snapshot: { grid, pose },
-          lastSeenAtMs: live.poseAtMs ?? (__DEV__ ? feed.lastSeenAtMs : undefined),
+          lastSeenAtMs: live.mapAtMs && live.poseAtMs
+            ? Math.min(live.mapAtMs, live.poseAtMs)
+            : live.mapAtMs ?? live.poseAtMs ?? (__DEV__ ? feed.lastSeenAtMs : undefined),
         }
       : { fresh: false }
-  }, [feed.snapshot, feed.lastSeenAtMs, live.pose, live.poseAtMs, live.poseFresh, connected])
+  }, [feed.snapshot, feed.lastSeenAtMs, live.map, live.mapAtMs, live.mapFresh, live.pose, live.poseAtMs, live.poseFresh, connected])
 
   const { grid, pose, fresh, lastSeenAtMs } = useMap(source)
 
@@ -90,8 +89,9 @@ export function MapScreen() {
 
   const ask = useCallback(
     async (point: { x: number; y: number }) => {
-      if (!demoTaps) {
-        setOutcome("Not sent — this is a demo map, not Brian's.")
+      const blocked = mapGoalBlockReason(!!live.map, live.mapFresh, demoTaps)
+      if (blocked) {
+        setOutcome(blocked)
         return
       }
 
@@ -119,14 +119,14 @@ export function MapScreen() {
             : result.reason,
       )
     },
-    [driveState.status, command, demoTaps],
+    [driveState.status, command, demoTaps, live.map, live.mapFresh],
   )
 
   // A result from one capability state must not outlive it: if driving goes from available to
   // unavailable, "Asked Brian to go there." is no longer the truth and must not linger.
   useEffect(() => {
     setOutcome(undefined)
-  }, [driveState.status, demoTaps])
+  }, [driveState.status, demoTaps, live.mapFresh])
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -172,7 +172,7 @@ export function MapScreen() {
         )}
       </View>
 
-      <DriveStatus state={driveState} gridPresent={!!grid} demo={!demoTaps} outcome={outcome} />
+      <DriveStatus state={driveState} gridPresent={!!grid} demo={!live.map && !demoTaps} staleMap={!!live.map && !live.mapFresh} outcome={outcome} />
 
       {__DEV__ && (
         <DevHud
@@ -182,6 +182,7 @@ export function MapScreen() {
           connected={connected}
           ticking={ticking}
           demoTaps={demoTaps}
+          liveMap={!!live.map}
           onSize={setSize}
           onPerCell={setPerCell}
           onConnect={setConnected}
@@ -204,12 +205,14 @@ function DriveStatus({
   state,
   gridPresent,
   demo,
+  staleMap,
   outcome,
 }: {
   state: CapabilityState
   gridPresent: boolean
   /** The map on screen is the fixture and taps on it are not being sent. */
   demo: boolean
+  staleMap: boolean
   outcome?: string
 }) {
   const { theme: C } = useTheme()
@@ -236,6 +239,10 @@ function DriveStatus({
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
           This is a demo map, so taps are not sent.
         </Text>
+      ) : staleMap ? (
+        <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
+          This map is out of date. Taps are not sent until it updates.
+        </Text>
       ) : state.status === 'available' ? (
         <Text style={{ color: C.muted, fontSize: 12, ...font(500) }}>
           Tap the map to send Brian there.
@@ -256,6 +263,7 @@ interface DevHudProps {
   connected: boolean
   ticking: boolean
   demoTaps: boolean
+  liveMap: boolean
   onSize: (size: (typeof SIZES)[number]) => void
   onPerCell: (perCell: boolean) => void
   onConnect: (connected: boolean) => void
@@ -270,6 +278,7 @@ function DevHud({
   connected,
   ticking,
   demoTaps,
+  liveMap,
   onSize,
   onPerCell,
   onConnect,
@@ -292,19 +301,21 @@ function DevHud({
       }}
     >
       <Text style={{ color: C.muted, fontSize: 11, ...font(600) }}>
-        {fps} fps · {size}×{size}
+        {fps} fps · {grid ? `${grid.width}×${grid.height}` : `${size}×${size}`}
         {counts ? ` · free ${counts.free} · occupied ${counts.occupied} · unknown ${counts.unknown}` : ''}
         {perCell ? ' · per-cell rects' : ' · batched path'}
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Chip label={connected ? 'Disconnect' : 'Reconnect'} active={!connected} onPress={() => onConnect(!connected)} />
-        <Chip label={ticking ? 'Pause' : 'Play'} active={!ticking} onPress={() => onTick(!ticking)} />
         <Chip label={perCell ? 'Batched path' : 'Per-cell rects'} active={perCell} onPress={() => onPerCell(!perCell)} />
-        <Chip label={demoTaps ? 'Stop sending taps' : 'Send taps (Fake Heart)'} active={demoTaps} onPress={() => onDemoTaps(!demoTaps)} />
-        {SIZES.map((s) => (
-          <Chip key={s} label={`${s}²`} active={size === s} onPress={() => onSize(s)} />
-        ))}
+        {!liveMap && <>
+          <Chip label={connected ? 'Disconnect' : 'Reconnect'} active={!connected} onPress={() => onConnect(!connected)} />
+          <Chip label={ticking ? 'Pause' : 'Play'} active={!ticking} onPress={() => onTick(!ticking)} />
+          <Chip label={demoTaps ? 'Stop sending taps' : 'Send taps (Fake Heart)'} active={demoTaps} onPress={() => onDemoTaps(!demoTaps)} />
+          {SIZES.map((s) => (
+            <Chip key={s} label={`${s}²`} active={size === s} onPress={() => onSize(s)} />
+          ))}
+        </>}
       </View>
     </View>
   )

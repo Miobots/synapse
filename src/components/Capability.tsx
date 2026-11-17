@@ -12,7 +12,7 @@ interface CapabilityProps {
   name: string
   title: string
   state: CapabilityState
-  onPress: () => void
+  onPress?: () => void
   style?: StyleProp<ViewStyle>
 }
 
@@ -34,7 +34,7 @@ export function Capability({ name, title, state, onPress, style }: CapabilityPro
         {name}
       </Text>
 
-      <Pressable
+      {onPress && <Pressable
         onPress={usable ? onPress : undefined}
         disabled={!usable}
         accessibilityState={{ disabled: !usable }}
@@ -51,7 +51,7 @@ export function Capability({ name, title, state, onPress, style }: CapabilityPro
         <Text style={{ color: usable ? '#FFFFFF' : C.muted, fontSize: 15, ...font(700) }}>
           {title}
         </Text>
-      </Pressable>
+      </Pressable>}
 
       <CapabilityStateText state={state} />
     </View>

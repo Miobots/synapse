@@ -4,11 +4,8 @@ import type { PosePayload } from '../protocol/index.ts'
  * M-82 / S2.1 — the occupancy grid.
  *
  * The robot owns this map; the app only draws what it is handed and keeps the last copy. There is
- * **no map topic in `@miobots/protocol` yet** (only `state.pose` / `state.battery` telemetry), so
- * the grid shape below is a local placeholder for this task. When the wire topic lands it moves to
- * the protocol package and is imported from `../protocol` like every other message shape —
- * retyping it here is exactly what CLAUDE.md warns against, so this file is a staging area, not a
- * second source of truth.
+ * The wire shape is `MapSnapshotPayload` in the shared protocol. This is the decoded renderer
+ * shape: a Uint8Array instead of run-length encoded cells.
  *
  * The pose, by contrast, is already a real message shape and is imported above rather than redrawn.
  */

@@ -14,6 +14,7 @@ import type { RobotStatusSnapshot, RobotStatusSources } from './types.ts'
 
 const snapshot: RobotStatusSnapshot = {
   batteryPct: 84,
+  isCharging: false,
   room: 'Kitchen',
   activity: 'Docking',
   health: 'ok',
@@ -37,6 +38,7 @@ describe('mergeRobotStatus', () => {
     const merged = mergeRobotStatus(snapshot, null, bothUp)
 
     assert.equal(tile(merged, 'battery').value, '84%')
+    assert.equal(tile(merged, 'charging').value, 'No')
     assert.equal(tile(merged, 'battery').fresh, true)
     assert.equal(tile(merged, 'battery').lastSeenAtMs, 5_000)
     assert.equal(merged.allCached, false)
@@ -57,10 +59,21 @@ describe('mergeRobotStatus', () => {
 
     assert.deepEqual(
       merged.tiles.map((t) => t.value),
-      ['Unknown', 'Unknown', 'Unknown', 'Unknown'],
+      ['Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown'],
     )
     // No tone either — a made-up health colour would read as a real reading.
     assert.equal(tile(merged, 'health').tone, undefined)
+  })
+
+  it('shows only published telemetry and marks an old battery reading as cached', () => {
+    const partial: RobotStatusSnapshot = { batteryPct: 95, isCharging: true }
+    const live = mergeRobotStatus(partial, null, bothUp)
+    assert.deepEqual(live.tiles.map((t) => t.value), ['95%', 'Yes', 'Unknown', 'Unknown', 'Unknown'])
+
+    const stale = mergeRobotStatus(null, { snapshot: partial, seenAtMs: 1_000 }, bothUp)
+    assert.equal(tile(stale, 'battery').fresh, false)
+    assert.equal(tile(stale, 'charging').fresh, false)
+    assert.equal(stale.links.find((link) => link.id === 'robot')?.up, true)
   })
 
   it('colours health by what the robot reported', () => {

@@ -3,7 +3,7 @@ import { Cell, type OccupancyGrid } from './types.ts'
 import { createGrid, setCell } from './grid.ts'
 
 /**
- * A stand-in for the robot's map, until the wire topic exists (see `types.ts`).
+ * A stand-in for the robot's map when no live snapshot has arrived in development.
  *
  * It is a deterministic room — walls, a couple of interior partitions with doorways, a few
  * obstacles — surrounded by unexplored cells, so the screen shows all three states and the grid is
