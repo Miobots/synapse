@@ -55,8 +55,8 @@ const FIXTURES: Record<Exclude<Combo, 'live'>, CapabilitySources> = {
 }
 
 const STATUS_BY_COMBO: Partial<Record<Combo, RobotStatusSnapshot>> = {
-  'both-fresh': { batteryPct: 84, room: 'Kitchen', activity: 'Docking', health: 'ok' },
-  'heart-only': { batteryPct: 84, room: 'Kitchen', activity: 'Idle', health: 'ok' },
+  'both-fresh': { batteryPct: 84, isCharging: true, room: 'Kitchen', activity: 'Docking', health: 'ok' },
+  'heart-only': { batteryPct: 84, isCharging: false, room: 'Kitchen', activity: 'Idle', health: 'ok' },
 }
 
 const COMBO_LABEL: Record<Combo, string> = {
@@ -82,7 +82,7 @@ export function HomeScreen() {
   const { tiles, links } = useRobotStatus({
     heart: {
       fresh: sources.heart.fresh,
-      snapshot: combo === 'live' && live.battery ? { batteryPct: live.battery.percentage } : STATUS_BY_COMBO[combo],
+      snapshot: combo === 'live' && live.battery ? { batteryPct: live.battery.percentage, isCharging: live.battery.is_charging } : STATUS_BY_COMBO[combo],
       snapshotFresh: combo === 'live' ? live.batteryFresh : sources.heart.fresh,
       lastSeenAtMs: combo === 'live' ? live.batteryAtMs : sources.heart.lastSeenAtMs,
     },

@@ -2,6 +2,7 @@ import type { SystemHealth } from '../protocol/index.ts'
 
 export interface RobotStatusSnapshot {
   batteryPct?: number
+  isCharging?: boolean
   room?: string
   activity?: string
   health?: SystemHealth

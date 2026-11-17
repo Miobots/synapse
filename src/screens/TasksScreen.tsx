@@ -6,7 +6,7 @@ export function TasksScreen() {
   const { theme: C } = useTheme()
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
-      <Text style={{ color: C.muted, fontSize: 14, ...font(500) }}>Tasks</Text>
+      <Text style={{ color: C.muted, fontSize: 14, ...font(500) }}>Reminders are not available yet.</Text>
     </View>
   )
 }
