@@ -18,6 +18,7 @@
 5. **Direct LAN Teleoperation:** Virtual joystick and video stream route directly over local Wi-Fi when co-located.
 6. **Heartbeats both ways:** the link sends `sys.heartbeat` every 5 s and goes offline after three missed beats from the Brain, without waiting for `onclose`.
 7. **Each manifest half is fresh on its own clock:** a Brain tick must never refresh the robot's half.
+8. **The approval card is the only approver:** `sys.approval` shows the exact arguments and a countdown; Approve/Reject is the ACK, sent on the connection it arrived on, and pending cards are dropped when the link drops (BRAIN_DECISIONS 27).
 
 ---
 

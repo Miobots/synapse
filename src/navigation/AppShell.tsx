@@ -11,6 +11,7 @@ import { ControlsScreen } from '../screens/ControlsScreen'
 import { CallScreen } from '../screens/CallScreen'
 import { TasksScreen } from '../screens/TasksScreen'
 import { DevicesScreen } from '../screens/DevicesScreen'
+import { ApprovalCard } from '../components/ApprovalCard'
 import { useBrainLink } from '../capabilities/hooks'
 import type { Screen } from '../types'
 
@@ -70,6 +71,7 @@ export function AppShell() {
         {screen === 'call' && <CallScreen />}
         {screen === 'tasks' && <TasksScreen />}
         {screen === 'devices' && <DevicesScreen live={live} />}
+        <ApprovalCard live={live} />
       </View>
 
       <View

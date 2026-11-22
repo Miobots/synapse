@@ -87,6 +87,10 @@ export interface LiveLink extends CapabilitySources {
   status: LinkSnapshot['status']
   /** Ask the Brain to do something; resolves with how it ended. See {@link SendCommand}. */
   command: SendCommand
+  /** Requests waiting for a tap (S5.1). */
+  approvals: LinkSnapshot['approvals']
+  /** Answer one. False when it can no longer be answered (expired, or the link dropped). */
+  answerApproval: (approvalId: string, approve: boolean) => boolean
 }
 
 export function useBrainLink(options?: { url?: string; token?: string }): LiveLink {
@@ -94,6 +98,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
     status: 'connecting',
     capabilities: {},
     halfAtMs: {},
+    approvals: [],
   })
   const [now, setNow] = useState(() => Date.now())
   const linkRef = useRef<ReturnType<typeof createBrainLink> | null>(null)
@@ -113,6 +118,11 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
   // Stable across renders, so passing it to a memoised screen does not re-render it every tick.
   const command = useCallback<SendCommand>(
     (topic, payload) => linkRef.current?.command(topic, payload) ?? Promise.resolve(UNSENT),
+    [],
+  )
+
+  const answerApproval = useCallback(
+    (approvalId: string, approve: boolean) => linkRef.current?.answerApproval(approvalId, approve) ?? false,
     [],
   )
 
@@ -145,6 +155,8 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       poseFresh: isFresh(snapshot.poseAtMs),
       status: snapshot.status,
       command,
+      approvals: snapshot.approvals,
+      answerApproval,
     }
-  }, [snapshot, now, command])
+  }, [snapshot, now, command, answerApproval])
 }
