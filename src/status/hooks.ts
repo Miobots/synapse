@@ -32,6 +32,8 @@ export function useRobotStatus(sources: RobotStatusSources) {
       sources.heart.lastSeenAtMs,
       sources.brain.fresh,
       sources.brain.lastSeenAtMs,
+      sources.laptops?.paired,
+      sources.laptops?.online,
     ],
   )
 }

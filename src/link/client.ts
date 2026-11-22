@@ -22,6 +22,8 @@ import {
   createAck,
   type AckPayload,
   type ApprovalPayload,
+  type PairedDevice,
+  isDevicesPayload,
   type Envelope,
   type CapabilityManifestPayload,
   type CapabilityStatus,
@@ -95,6 +97,8 @@ export interface LinkSnapshot {
    * the Brain ignores an answer from anywhere else — so they are dropped when the link drops.
    */
   approvals: ApprovalPayload[]
+  /** Paired laptops as the Brain last listed them (`sys.devices`). Kept across a drop, like the manifest. */
+  pairedDevices: PairedDevice[]
 }
 
 export interface BrainLinkOptions {
@@ -172,7 +176,7 @@ export function createBrainLink(options: BrainLinkOptions) {
     }, ProtocolDefaults.HEARTBEAT_INTERVAL_MS)
   }
 
-  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {}, halfAtMs: {}, approvals: [] }
+  let snapshot: LinkSnapshot = { status: 'connecting', capabilities: {}, halfAtMs: {}, approvals: [], pairedDevices: [] }
 
   function publish(next: Partial<LinkSnapshot>): void {
     snapshot = { ...snapshot, ...next }
@@ -316,6 +320,12 @@ export function createBrainLink(options: BrainLinkOptions) {
           map: { width: map.width, height: map.height, resolution: map.resolution, origin: map.origin, cells: decodeCells(map) },
           mapAtMs: Date.now(),
         })
+        return
+      }
+
+      if (envelope.topic === Topics.SYS_DEVICES) {
+        // Not in the codec's guards (Heart never sees it), so the boundary check is here.
+        if (isDevicesPayload(envelope.payload)) publish({ pairedDevices: envelope.payload.devices })
         return
       }
 

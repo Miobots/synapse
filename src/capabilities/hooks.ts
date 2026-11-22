@@ -87,6 +87,8 @@ export interface LiveLink extends CapabilitySources {
   status: LinkSnapshot['status']
   /** Ask the Brain to do something; resolves with how it ended. See {@link SendCommand}. */
   command: SendCommand
+  /** Paired laptops; `online` is as of the Brain's last list, so trust it only while connected. */
+  pairedDevices: LinkSnapshot['pairedDevices']
   /** Requests waiting for a tap (S5.1). */
   approvals: LinkSnapshot['approvals']
   /** Answer one. False when it can no longer be answered (expired, or the link dropped). */
@@ -99,6 +101,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
     capabilities: {},
     halfAtMs: {},
     approvals: [],
+    pairedDevices: [],
   })
   const [now, setNow] = useState(() => Date.now())
   const linkRef = useRef<ReturnType<typeof createBrainLink> | null>(null)
@@ -156,6 +159,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       status: snapshot.status,
       command,
       approvals: snapshot.approvals,
+      pairedDevices: snapshot.pairedDevices,
       answerApproval,
     }
   }, [snapshot, now, command, answerApproval])

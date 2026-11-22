@@ -20,6 +20,16 @@ EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start
 The Brain must then listen beyond loopback (`HOST=0.0.0.0` in `miobots-brain`), and the laptop's
 firewall must allow ports 8080 (Brain) and 8081 (Expo).
 
+**Approval notifications need the installed app, not Expo Go** (Expo Go can't receive pushes on
+Android). One-time setup: put your Firebase `google-services.json` (package `com.miobots.synapse`)
+in this folder, and upload the FCM V1 service-account key with `npx eas-cli credentials`. Both are
+gitignored; keep the key outside the repo or in `keys/`. Then, with Java 17 and the phone on adb:
+
+```bash
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 npm run android   # builds and installs, ~15 min the first time
+EXPO_PUBLIC_BRAIN_URL=ws://<laptop-ip>:8080/ws npx expo start --dev-client
+```
+
 See `CLAUDE.md` for the rules that apply here — above all, that every capability-driven control
 goes through one shared component with three honest states, and never greys out without a reason.
 

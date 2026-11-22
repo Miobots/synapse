@@ -18,6 +18,11 @@ export interface StatusSource {
 export interface RobotStatusSources {
   heart: StatusSource
   brain: StatusSource
+  /**
+   * The paired laptops, if any. No laptop paired means no Laptop link at all: Ganglion is optional,
+   * and a permanent red chip would read as a fault (vault CLAUDE.md, "deliberately removable").
+   */
+  laptops?: { paired: number; online: number }
 }
 
 export interface LastKnownSnapshot {

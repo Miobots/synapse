@@ -12,6 +12,7 @@ import { CallScreen } from '../screens/CallScreen'
 import { TasksScreen } from '../screens/TasksScreen'
 import { DevicesScreen } from '../screens/DevicesScreen'
 import { ApprovalCard } from '../components/ApprovalCard'
+import { usePushRegistration } from '../push/usePushRegistration'
 import { useBrainLink } from '../capabilities/hooks'
 import type { Screen } from '../types'
 
@@ -35,6 +36,7 @@ export function AppShell() {
   const insets = useSafeAreaInsets()
   const [screen, setScreen] = useState<Screen>('home')
   const live = useBrainLink({ url: process.env.EXPO_PUBLIC_BRAIN_URL })
+  const pushStatus = usePushRegistration(live)
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -70,7 +72,7 @@ export function AppShell() {
         {screen === 'controls' && <ControlsScreen />}
         {screen === 'call' && <CallScreen />}
         {screen === 'tasks' && <TasksScreen />}
-        {screen === 'devices' && <DevicesScreen live={live} />}
+        {screen === 'devices' && <DevicesScreen live={live} pushStatus={pushStatus} />}
         <ApprovalCard live={live} />
       </View>
 

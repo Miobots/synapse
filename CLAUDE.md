@@ -55,6 +55,10 @@ code. Finding a daemon is not consent to use it.
 the exact arguments, not a summary, and a countdown. A pending approval can only be answered on
 the connection it arrived on, so it is dropped when the link drops.
 
+**A push only opens the app** (BRAIN_DECISIONS 28). It never approves anything, and it carries no
+arguments. Remote push needs an installed build; Expo Go on Android cannot receive it, and the
+Devices screen says so.
+
 ---
 
 ## Vocabulary warning

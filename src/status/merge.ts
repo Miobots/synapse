@@ -57,6 +57,10 @@ export function mergeRobotStatus(
     { id: 'brain', label: 'Brain', up: sources.brain.fresh },
     { id: 'core', label: 'Robot↔Brain', up: sources.heart.fresh && sources.brain.fresh },
   ]
+  // The laptop is reached only through the Brain, so a down Brain means a down laptop link too.
+  if (sources.laptops && sources.laptops.paired > 0) {
+    links.push({ id: 'laptop', label: 'Laptop', up: sources.brain.fresh && sources.laptops.online > 0 })
+  }
 
   const overallSeen = Math.max(sources.heart.lastSeenAtMs ?? 0, sources.brain.lastSeenAtMs ?? 0)
 

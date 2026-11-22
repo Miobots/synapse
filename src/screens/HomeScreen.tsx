@@ -87,6 +87,9 @@ export function HomeScreen({ live }: { live: LiveLink }) {
       fresh: sources.brain.fresh,
       lastSeenAtMs: sources.brain.lastSeenAtMs,
     },
+    laptops: combo === 'live'
+      ? { paired: live.pairedDevices.length, online: live.pairedDevices.filter((d) => d.online).length }
+      : undefined,
   })
 
   // TASKS.md S1.2, row 4: both halves gone -> last-known everything, with a staleness banner.

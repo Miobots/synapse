@@ -439,4 +439,16 @@ describe('createBrainLink', () => {
     assert.equal(link.answerApproval('ap-2', true), false)
     link.stop()
   })
+
+  it('keeps the paired laptops the Brain lists, and ignores a malformed list', () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    const devices = [{ device_id: 'stb-laptop', name: 'stb-laptop', paired_at: '2026-11-18T03:38:05Z', online: true }]
+    socket.deliver(newEnvelope({ kind: Kind.EVT, topic: Topics.SYS_DEVICES, payload: { devices }, seq: hubSeq }))
+    assert.deepEqual(seen.at(-1)!.pairedDevices, devices)
+    socket.deliver(newEnvelope({ kind: Kind.EVT, topic: Topics.SYS_DEVICES, payload: { devices: [{ device_id: 'x' }] } as never, seq: hubSeq }))
+    assert.deepEqual(seen.at(-1)!.pairedDevices, devices)
+    link.stop()
+  })
 })

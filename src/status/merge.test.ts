@@ -97,6 +97,16 @@ describe('mergeRobotStatus', () => {
     assert.equal(heartOnly.allCached, false)
   })
 
+  it('adds a Laptop link only once a laptop is paired, up only while it and the Brain are', () => {
+    const ids = (laptops?: { paired: number; online: number }, brainFresh = true) =>
+      Object.fromEntries(mergeRobotStatus(snapshot, null, { heart: { fresh: true }, brain: { fresh: brainFresh }, laptops }).links.map((l) => [l.id, l.up]))
+    assert.equal('laptop' in ids(), false)
+    assert.equal('laptop' in ids({ paired: 0, online: 0 }), false)
+    assert.equal(ids({ paired: 1, online: 1 }).laptop, true)
+    assert.equal(ids({ paired: 1, online: 0 }).laptop, false)
+    assert.equal(ids({ paired: 1, online: 1 }, false).laptop, false)
+  })
+
   it('reports the newer of the two halves as last seen', () => {
     const merged = mergeRobotStatus(snapshot, null, {
       heart: { fresh: true, lastSeenAtMs: 100 },
