@@ -20,6 +20,7 @@
 7. **Each manifest half is fresh on its own clock:** a Brain tick must never refresh the robot's half.
 8. **The approval card is the only approver:** `sys.approval` shows the exact arguments and a countdown; Approve/Reject is the ACK, sent on the connection it arrived on, and pending cards are dropped when the link drops (BRAIN_DECISIONS 27).
 9. **A push only opens the app:** approval pushes say only that something is waiting; never approve from a notification, never put arguments in one. Expo Go on Android cannot receive remote push (BRAIN_DECISIONS 28).
+10. **The activity log is fetched, never kept:** ask with `sys.audit` each time and show the Brain's verified/tampered verdict; the Laptop access switch shows `killswitch_active` from the Brain, never an assumed state (BRAIN_DECISIONS 29).
 
 ---
 

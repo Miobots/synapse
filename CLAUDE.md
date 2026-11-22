@@ -59,6 +59,11 @@ the connection it arrived on, so it is dropped when the link drops.
 arguments. Remote push needs an installed build; Expo Go on Android cannot receive it, and the
 Devices screen says so.
 
+**The activity log is fetched, never kept** (S5.2, BRAIN_DECISIONS 29). Devices asks for it with
+`sys.audit` each time and shows the Brain's verified/tampered verdict; a copy of a tamper-evident
+log defeats its purpose. **The Laptop access switch shows the Brain's state** (`killswitch_active`
+on `sys.devices`), never one the app assumes after a tap.
+
 ---
 
 ## Vocabulary warning
