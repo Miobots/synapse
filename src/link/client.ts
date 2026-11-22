@@ -24,6 +24,8 @@ import {
   type ApprovalPayload,
   type PairedDevice,
   isDevicesPayload,
+  isAuditView,
+  type AuditView,
   type Envelope,
   type CapabilityManifestPayload,
   type CapabilityStatus,
@@ -58,7 +60,7 @@ export type SendCommand = <TTopic extends TopicName>(
 /** How a command ended. Only `accepted` means the Brain took it — and even that is not "finished". */
 export type CommandOutcome =
   /** `name` is set when the ACK names a device, as the answer to `sys.pair_confirm` does. */
-  | { status: 'accepted'; name?: string }
+  | { status: 'accepted'; name?: string; audit?: AuditView }
   /** The Brain, or the robot behind it, said no. `reason` is the publisher's own word for why. */
   | { status: 'rejected'; reason?: string }
   /** Nobody answered: the wire was down, dropped, or the ACK never came. `reason` is plain words. */
@@ -99,6 +101,8 @@ export interface LinkSnapshot {
   approvals: ApprovalPayload[]
   /** Paired laptops as the Brain last listed them (`sys.devices`). Kept across a drop, like the manifest. */
   pairedDevices: PairedDevice[]
+  /** The kill switch, as of the Brain's last `sys.devices` (B5.6). */
+  killswitchActive?: boolean
 }
 
 export interface BrainLinkOptions {
@@ -290,7 +294,7 @@ export function createBrainLink(options: BrainLinkOptions) {
         settle(
           envelope.corr_id,
           ack.accepted
-            ? { status: 'accepted', ...(ack.name ? { name: ack.name } : {}) }
+            ? { status: 'accepted', ...(ack.name ? { name: ack.name } : {}), ...(isAuditView(ack.audit) ? { audit: ack.audit } : {}) }
             : { status: 'rejected', reason: ack.reason },
         )
         return
@@ -325,7 +329,9 @@ export function createBrainLink(options: BrainLinkOptions) {
 
       if (envelope.topic === Topics.SYS_DEVICES) {
         // Not in the codec's guards (Heart never sees it), so the boundary check is here.
-        if (isDevicesPayload(envelope.payload)) publish({ pairedDevices: envelope.payload.devices })
+        if (isDevicesPayload(envelope.payload)) {
+          publish({ pairedDevices: envelope.payload.devices, killswitchActive: envelope.payload.killswitch_active === true })
+        }
         return
       }
 
