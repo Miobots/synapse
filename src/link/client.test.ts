@@ -451,4 +451,20 @@ describe('createBrainLink', () => {
     assert.deepEqual(seen.at(-1)!.pairedDevices, devices)
     link.stop()
   })
+
+  it('takes the kill switch from sys.devices, and hands back the audit view from its ACK only (S5.2, S5.3)', async () => {
+    const { link, socket } = start()
+    socket.onopen!()
+    socket.deliver(welcome(true))
+    socket.deliver(newEnvelope({ kind: Kind.EVT, topic: Topics.SYS_DEVICES, payload: { devices: [], killswitch_active: true }, seq: hubSeq }))
+    assert.equal(seen.at(-1)!.killswitchActive, true)
+
+    const outcome = link.command(Topics.SYS_AUDIT, { limit: 50 })
+    const sent = decode(socket.sent[socket.sent.length - 1]!)
+    const audit = { entries: [{ id: 1, at_ms: 1, event: 'killswitch_on' as const, approved_by: 'synapse-app', prev_hash: '', hash: 'ab' }], chain: { ok: true, checked: 1 } }
+    socket.deliver(newEnvelope({ kind: Kind.ACK, topic: Topics.SYS_AUDIT, corr_id: sent.corr_id, payload: { accepted: true, audit }, seq: hubSeq }))
+    assert.deepEqual(await outcome, { status: 'accepted', audit })
+    assert.equal('audit' in seen.at(-1)!, false, 'the log is never kept in the snapshot')
+    link.stop()
+  })
 })

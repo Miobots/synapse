@@ -89,6 +89,8 @@ export interface LiveLink extends CapabilitySources {
   command: SendCommand
   /** Paired laptops; `online` is as of the Brain's last list, so trust it only while connected. */
   pairedDevices: LinkSnapshot['pairedDevices']
+  /** The kill switch is on: Mio may not use any laptop. Trust it only while connected. */
+  killswitchActive: boolean
   /** Requests waiting for a tap (S5.1). */
   approvals: LinkSnapshot['approvals']
   /** Answer one. False when it can no longer be answered (expired, or the link dropped). */
@@ -160,6 +162,7 @@ export function useBrainLink(options?: { url?: string; token?: string }): LiveLi
       command,
       approvals: snapshot.approvals,
       pairedDevices: snapshot.pairedDevices,
+      killswitchActive: snapshot.killswitchActive === true,
       answerApproval,
     }
   }, [snapshot, now, command, answerApproval])
