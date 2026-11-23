@@ -19,6 +19,9 @@ export function auditLine(entry: AuditEntry): { title: string; detail: string } 
   if (entry.event === 'killswitch_on') return { title: 'Laptop access switched off', detail: `by ${entry.approved_by ?? 'unknown'}` }
   if (entry.event === 'killswitch_off') return { title: 'Laptop access switched back on', detail: `by ${entry.approved_by ?? 'unknown'}` }
   const args = entry.args ? argumentLines(entry.args).join(', ') : ''
+  const asked = `${entry.tool ?? 'unknown tool'}${args ? ` · ${args}` : ''}`
+  if (entry.event === 'approval_rejected') return { title: `Not run: ${asked}`, detail: `rejected by ${entry.approved_by ?? 'someone'}` }
+  if (entry.event === 'approval_unanswered') return { title: `Not run yet: ${asked}`, detail: 'nobody answered in time; waiting in the inbox' }
   return {
     title: `${entry.tool ?? 'unknown tool'}${args ? ` · ${args}` : ''}`,
     detail: entry.approved_by ? `approved by ${entry.approved_by}` : 'read only, no approval needed',

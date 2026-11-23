@@ -27,6 +27,11 @@ describe('audit wording (S5.2)', () => {
     })
     assert.equal(auditLine({ ...base, event: 'tool_call', tool: 'system.get_status', args: {} }).detail, 'read only, no approval needed')
     assert.equal(auditLine({ ...base, event: 'killswitch_on', approved_by: 'synapse-app' }).title, 'Laptop access switched off')
+    assert.deepEqual(auditLine({ ...base, event: 'approval_rejected', tool: 'run_script', args: { id: 'backup' }, approved_by: 'synapse-app' }), {
+      title: 'Not run: run_script · id: "backup"',
+      detail: 'rejected by synapse-app',
+    })
+    assert.equal(auditLine({ ...base, event: 'approval_unanswered', tool: 'run_script', args: {} }).detail, 'nobody answered in time; waiting in the inbox')
   })
 
   it('says verified, or names the tampered row', () => {

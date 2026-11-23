@@ -51,8 +51,9 @@ them.
 **No device is auto-adopted.** Anything discovered on the network needs a one-time confirmation
 code. Finding a daemon is not consent to use it.
 
-**The approval card is the only way a laptop action is approved** (BRAIN_DECISIONS 27). It shows
-the exact arguments, not a summary, and a countdown. A pending approval can only be answered on
+**The approval card is how the phone approves a laptop action** (BRAIN_DECISIONS 27). The only
+other approver is the laptop's own notification, when its owner turns that on (BRAIN_DECISIONS 30).
+The card shows the exact arguments, not a summary, and a countdown. A pending approval can only be answered on
 the connection it arrived on, so it is dropped when the link drops.
 
 **A push only opens the app** (BRAIN_DECISIONS 28). It never approves anything, and it carries no
