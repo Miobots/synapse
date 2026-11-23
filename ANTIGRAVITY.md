@@ -18,9 +18,9 @@
 5. **Direct LAN Teleoperation:** Virtual joystick and video stream route directly over local Wi-Fi when co-located.
 6. **Heartbeats both ways:** the link sends `sys.heartbeat` every 5 s and goes offline after three missed beats from the Brain, without waiting for `onclose`.
 7. **Each manifest half is fresh on its own clock:** a Brain tick must never refresh the robot's half.
-8. **The approval card is the only approver:** `sys.approval` shows the exact arguments and a countdown; Approve/Reject is the ACK, sent on the connection it arrived on, and pending cards are dropped when the link drops (BRAIN_DECISIONS 27).
+8. **The approval card is the phone's approver:** (the laptop's own notification is the only other, when turned on; BRAIN_DECISIONS 30) `sys.approval` shows the exact arguments and a countdown; Approve/Reject is the ACK, sent on the connection it arrived on, and pending cards are dropped when the link drops (BRAIN_DECISIONS 27).
 9. **A push only opens the app:** approval pushes say only that something is waiting; never approve from a notification, never put arguments in one. Expo Go on Android cannot receive remote push (BRAIN_DECISIONS 28).
-10. **The activity log is fetched, never kept:** ask with `sys.audit` each time and show the Brain's verified/tampered verdict; the Laptop access switch shows `killswitch_active` from the Brain, never an assumed state (BRAIN_DECISIONS 29).
+10. **The activity log is fetched, never kept:** ask with `sys.audit` each time and show the Brain's verified/tampered verdict; the Laptop access switch shows `killswitch_active` from the Brain, never an assumed state (BRAIN_DECISIONS 29). Rejected and unanswered requests are rows too and are shown as "not run".
 
 ---
 
